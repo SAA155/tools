@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汇率中心</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <!-- 引入谷歌字体 'Inter' -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 Chart.js 库用于绘制图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入 Chart.js 的日期适配器 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        /* --- CSS 变量定义 --- */
+        :root {
+            --bg-color: #121212; /* 页面背景色 */
+            --surface-color: rgba(28, 28, 30, 0.75); /* 卡片等元素的背景色 */
+            --primary-color: #0A84FF; /* 主要颜色，用于交互元素 */
+            --green-color: #34C759; /* 汇率下跌颜色 */
+            --red-color: #FF3B30;   /* 汇率上涨颜色 */
+            --text-color: #F2F2F7; /* 主要文字颜色 */
+            --text-secondary-color: #8E8E93; /* 次要文字颜色 */
+            --border-color: rgba(84, 84, 88, 0.65); /* 边框颜色 */
+            --border-hover-color: rgba(110, 170, 255, 0.7); /* 鼠标悬停时边框颜色 */
+            --shadow-color: rgba(0, 0, 0, 0.3); /* 阴影颜色 */
+            --list-bg-color: rgba(44, 44, 46, 0.9); /* 下拉列表背景色 */
+        }
+
+        /* --- 全局和基础样式 --- */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 1% 1%, rgba(10, 132, 255, 0.25) 0%, transparent 35%), 
+                              radial-gradient(circle at 99% 99%, rgba(255, 59, 48, 0.15) 0%, transparent 35%);
+            background-attachment: fixed; /* 背景图不随滚动条滚动 */
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 15px;
+        }
+
+        /* --- 主容器样式 --- */
+        .container {
+            background-color: var(--surface-color);
+            padding: 30px 40px;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 16px 48px 0 var(--shadow-color);
+            backdrop-filter: blur(20px); /* 背景模糊效果 (玻璃拟态) */
+            -webkit-backdrop-filter: blur(20px);
+            width: 100%;
+            max-width: 520px;
+            text-align: center;
+            animation: fadeIn 0.8s ease-in-out;
+            transition: height 0.4s ease-in-out;
+        }
+
+        /* 容器入场动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        
+        /* --- 顶部标签页导航 --- */
+        .tabs {
+            display: flex; background-color: rgba(36, 36, 38, 0.7);
+            border-radius: 12px; padding: 5px; margin-bottom: 30px; position: relative;
+        }
+        .tab {
+            flex: 1; padding: 10px; border-radius: 9px; cursor: pointer;
+            font-weight: 500; transition: color 0.3s ease; position: relative; z-index: 2;
+        }
+        /* 标签页滑块，用于指示当前选中的项 */
+        .tab-glider {
+            position: absolute; height: calc(100% - 10px); top: 5px; left: 5px;
+            width: calc(50% - 5px); background-color: var(--primary-color);
+            border-radius: 9px; transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); z-index: 1;
+        }
+
+        /* --- 视图和切换动画 --- */
+        .view-content { /* 移除 overflow: hidden; 解决下拉列表被遮挡问题 */ }
+        .view { animation: slideIn 0.5s cubic-bezier(0.25, 1, 0.5, 1); display: none; }
+        .view.active { display: block; }
+        /* 视图切入动画 */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* --- 通用元素样式 --- */
+        h1 { margin-top: 0; font-size: 2em; font-weight: 700; color: var(--text-color); margin-bottom: 25px; }
+        label { margin-bottom: 10px; font-weight: 500; color: var(--text-secondary-color); font-size: 0.9em; display: block; text-align: left; }
+        
+        input[type="number"] {
+            width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border-color);
+            font-size: 1.2em; background-color: rgba(36, 36, 38, 0.8); color: var(--text-color);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        input[type="number"]:hover { border-color: var(--border-hover-color); }
+        input[type="number"]:focus {
+            outline: none; border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.3);
+        }
+
+        /* --- 自定义下拉选择框样式 --- */
+        .custom-select-wrapper { position: relative; }
+        .custom-select {
+            width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border-color);
+            font-size: 1.2em; background-color: rgba(36, 36, 38, 0.8); color: var(--text-color);
+            transition: all 0.3s ease; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .custom-select:hover { border-color: var(--border-hover-color); }
+        .custom-select.open {
+            border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.3);
+            border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+        }
+        .custom-select-arrow { transition: transform 0.3s ease; width: 1em; height: 1em; }
+        .custom-select.open .custom-select-arrow { transform: rotate(180deg); }
+        .custom-options {
+            position: absolute; top: 100%; left: 0; right: 0; background-color: var(--list-bg-color);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--primary-color); border-top: none;
+            border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; max-height: 200px;
+            overflow-y: auto; z-index: 1000; opacity: 0; visibility: hidden; transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+            scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;
+        }
+        /* 自定义滚动条样式 */
+        .custom-options::-webkit-scrollbar { width: 8px; }
+        .custom-options::-webkit-scrollbar-track { background: transparent; }
+        .custom-options::-webkit-scrollbar-thumb { background-color: var(--border-color); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+        .custom-options::-webkit-scrollbar-thumb:hover { background-color: var(--primary-color); }
+        .custom-select.open + .custom-options { opacity: 1; visibility: visible; transform: translateY(0); }
+        .custom-option { padding: 12px 16px; cursor: pointer; transition: background-color 0.2s ease; text-align: left; }
+        .custom-option:hover, .custom-option.selected { background-color: var(--primary-color); }
+        
+        /* --- 汇率换算视图样式 --- */
+        #multi-results-container { margin-top: 25px; }
+        #currency-list { display: flex; flex-direction: column; gap: 16px; }
+        .multi-result-item {
+            display: flex; align-items: center; gap: 12px;
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            cursor: grab;
+        }
+        /* **新增** 拖动占位符样式 */
+        .ghost {
+            opacity: 0.4;
+            background: rgba(84, 84, 88, 0.3);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            cursor: grabbing;
+        }
+        .multi-result-item.dragging {
+            opacity: 0.8;
+            cursor: grabbing;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            transform: scale(1.02);
+            background-color: var(--list-bg-color);
+        }
+        .multi-result-item.removing { 
+            opacity: 0 !important; 
+            transform: scale(0.95) !important;
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: -16px !important;
+            overflow: hidden;
+        }
+         /* **新增** 添加动画 */
+        .item-enter {
+            opacity: 0;
+            transform: scale(0.9);
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            margin-top: -16px;
+            overflow: hidden;
+        }
+
+        .multi-result-item .currency-details { flex-grow: 1; text-align: left; pointer-events: none; }
+        .multi-result-item .currency-code { font-weight: 500; font-size: 1.1em; }
+        .multi-result-item .currency-name { color: var(--text-secondary-color); font-size: 0.9em; }
+        .multi-result-item .currency-input-wrapper { flex-basis: 50%; }
+        .currency-input {
+            width: 100%; text-align: right; padding: 12px; border-radius: 8px;
+            font-size: 1.1em; background-color: rgba(0,0,0,0.2); border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+        .currency-input:focus {
+            background-color: rgba(0,0,0,0.3); border-color: var(--primary-color);
+            outline: none; box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.3);
+        }
+        
+        .remove-currency-btn {
+            background: none; border: none; cursor: pointer; padding: 5px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0.5; transition: opacity 0.3s ease, background-color 0.3s ease;
+        }
+        .remove-currency-btn:hover { opacity: 1; background-color: rgba(255, 255, 255, 0.1); }
+        .remove-currency-btn svg { width: 16px; height: 16px; stroke: var(--text-secondary-color); stroke-width: 2.5; }
+
+        /* --- 历史图表视图样式 --- */
+        #chart-view .currency-group { display: flex; gap: 15px; }
+        #chart-container { position: relative; min-height: 250px; margin-top: 20px; }
+        .chart-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; flex-wrap: wrap; }
+        #latest-rate { text-align: right;}
+        #latest-rate-value { font-size: 1.1em; font-weight: 700; }
+        #latest-rate-change { font-size: 0.9em; margin-left: 5px; }
+        .chart-controls { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+        .time-range-btn {
+            background-color: rgba(36, 36, 38, 0.7); border: 1px solid var(--border-color);
+            color: var(--text-secondary-color); padding: 8px 16px; border-radius: 8px;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .time-range-btn:hover { background-color: rgba(56, 56, 58, 0.9); color: var(--text-color); }
+        .time-range-btn.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+        #chart-tooltip {
+            position: absolute; top: 0; left: 10px; background: var(--list-bg-color);
+            padding: 8px 12px; border-radius: 8px; pointer-events: none;
+            opacity: 0; transition: opacity 0.2s ease; font-size: 0.9em;
+            border: 1px solid var(--border-color); z-index: 100;
+        }
+        #chart-tooltip .date { font-weight: bold; margin-bottom: 4px; }
+        
+        /* --- 加载动画样式 --- */
+        .loader {
+            width: 48px; height: 48px; border: 5px solid #FFF; border-bottom-color: var(--primary-color);
+            border-radius: 50%; display: inline-block; animation: rotation 1s linear infinite;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        @keyframes rotation { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        
+        /* --- 页脚样式 --- */
+        .footer { margin-top: 30px; font-size: 0.8em; color: var(--text-secondary-color); }
+        .footer a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
+        .footer a:hover { text-decoration: underline; }
+
+        /* --- **新增** 教程浮层样式 --- */
+        #tutorial-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease, visibility 0.4s;
+        }
+        #tutorial-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .tutorial-card {
+            background-color: var(--surface-color);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px 0 var(--shadow-color);
+            width: 90%;
+            max-width: 480px;
+            text-align: left;
+            transform: scale(0.95);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        #tutorial-overlay.visible .tutorial-card {
+            transform: scale(1);
+        }
+        .tutorial-card h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        .tutorial-card ul {
+            padding-left: 20px;
+            list-style: '💡 ';
+        }
+        .tutorial-card li {
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+        .tutorial-card button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            border: none;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: filter 0.2s ease;
+        }
+        .tutorial-card button:hover {
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- **新增** 教程浮层 -->
+    <div id="tutorial-overlay">
+        <div class="tutorial-card">
+            <h2>欢迎使用汇率中心！</h2>
+            <p>这是一个简短的使用指南，帮助您快速上手：</p>
+            <ul>
+                <li>在 <strong>汇率换算</strong> 视图中，您可以直接修改任一货币的金额，其它货币会自动同步计算。</li>
+                <li>您可以 <strong>拖动</strong> 货币项来进行排序，点击右侧的 '×' 来删除。</li>
+                <li>在 <strong>历史图表</strong> 视图中，选择两种货币，即可查看它们在不同时间范围内的汇率走势。</li>
+            </ul>
+            <button id="close-tutorial">明白了</button>
+        </div>
+    </div>
+
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 顶部标签页导航 -->
+        <div class="tabs">
+            <div class="tab" data-view="converter-view">汇率换算</div>
+            <div class="tab" data-view="chart-view">历史图表</div>
+            <div class="tab-glider"></div>
+        </div>
+
+        <!-- 视图内容区域 -->
+        <div class="view-content">
+            <!-- 汇率换算视图 -->
+            <div id="converter-view" class="view active">
+                <h1>实时汇率转换</h1>
+                <!-- **修改** 容器结构，分离列表和添加按钮 -->
+                <div id="multi-results-container">
+                    <div id="currency-list"></div>
+                    <div id="add-currency-wrapper" class="custom-select-wrapper"></div>
+                </div>
+            </div>
+
+            <!-- 历史图表视图 -->
+            <div id="chart-view" class="view">
+                 <div class="chart-header">
+                    <h1>历史汇率走势</h1>
+                    <div id="latest-rate"></div>
+                </div>
+                <div class="currency-group">
+                    <div class="currency-from">
+                        <label>基础货币</label>
+                        <div class="custom-select-wrapper" id="from-currency-chart"></div>
+                    </div>
+                    <div>
+                        <label>目标货币</label>
+                        <div class="custom-select-wrapper" id="to-currency-chart"></div>
+                    </div>
+                </div>
+                <div id="chart-container">
+                    <canvas id="rateChart"></canvas>
+                    <div id="chart-tooltip"></div>
+                </div>
+                <div class="chart-controls">
+                    <button class="time-range-btn" data-days="7">7天</button>
+                    <button class="time-range-btn active" data-days="30">30天</button>
+                    <button class="time-range-btn" data-days="90">90天</button>
+                </div>
+            </div>
+        </div>
+        <!-- 页脚 -->
+        <div class="footer">
+            <p>汇率数据由 <a href="https://www.frankfurter.app" target="_blank">frankfurter.app</a> 提供</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 1. 全局变量和数据定义 ---
+            const supportedCurrencies = {
+                "USD": { name: "美元" }, "EUR": { name: "欧元" }, "JPY": { name: "日元" },
+                "GBP": { name: "英镑" }, "CNY": { name: "人民币" }, "AUD": { name: "澳元" },
+                "CAD": { name: "加元" }, "CHF": { name: "瑞士法郎" }, "HKD": { name: "港币" },
+                "NZD": { name: "新西兰元" }, "SGD": { name: "新加坡元" }, "KRW": { name: "韩元" }
+            };
+            
+            const tabs = document.querySelectorAll('.tab');
+            const glider = document.querySelector('.tab-glider');
+            const views = document.querySelectorAll('.view');
+            
+            // --- 2. 标签页切换逻辑 ---
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('click', () => {
+                    glider.style.transform = `translateX(${100 * index}%)`;
+                    views.forEach(view => view.classList.remove('active'));
+                    document.getElementById(tab.dataset.view).classList.add('active');
+                    if (tab.dataset.view === 'chart-view') drawChart();
+                });
+            });
+
+            // --- 3. 创建自定义下拉选择框的工厂函数 ---
+            function createCustomSelect(wrapper, options, defaultCurrency, config = {}) {
+                const { placeholder = null, onChangeCallback = () => {} } = config;
+                let selectedValue = defaultCurrency;
+                
+                function render() {
+                    wrapper.innerHTML = `
+                        <div class="custom-select" tabindex="0">
+                            <span class="selected-value"></span>
+                            <svg class="custom-select-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+                        </div>
+                        <div class="custom-options"></div>`;
+                    
+                    const selectEl = wrapper.querySelector('.custom-select');
+                    const selectedValueEl = wrapper.querySelector('.selected-value');
+                    const optionsEl = wrapper.querySelector('.custom-options');
+
+                    function updateSelectedText() {
+                        if (placeholder && selectedValue === defaultCurrency) {
+                            selectedValueEl.textContent = placeholder;
+                        } else {
+                            const currency = options[selectedValue];
+                            if (currency) selectedValueEl.textContent = `${selectedValue} - ${currency.name}`;
+                        }
+                    }
+                    
+                    Object.keys(options).forEach(code => {
+                        const optionEl = document.createElement('div');
+                        optionEl.className = 'custom-option';
+                        optionEl.textContent = `${code} - ${options[code].name}`;
+                        optionEl.dataset.value = code;
+                        
+                        optionEl.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (selectedValue !== code || placeholder) {
+                                selectedValue = code;
+                                wrapper.dataset.value = code;
+                                updateSelectedText();
+                                onChangeCallback(code);
+                            }
+                            selectEl.classList.remove('open');
+                        });
+                        optionsEl.appendChild(optionEl);
+                    });
+
+                    selectEl.addEventListener('click', () => selectEl.classList.toggle('open'));
+                    wrapper.dataset.value = selectedValue;
+                    updateSelectedText();
+                }
+                render();
+            }
+            
+            document.addEventListener('click', (e) => {
+                document.querySelectorAll('.custom-select-wrapper').forEach(wrapper => {
+                    if (!wrapper.contains(e.target)) wrapper.querySelector('.custom-select').classList.remove('open');
+                });
+            });
+
+            // --- 4. 汇率换算视图逻辑 (已重构) ---
+            const currencyListContainer = document.getElementById('currency-list');
+            const addCurrencyWrapper = document.getElementById('add-currency-wrapper');
+            let activeCurrencies = ['USD', 'EUR', 'CNY', 'JPY'];
+            let baseCurrency = 'USD';
+            let baseAmount = 100;
+            let ratesCache = {};
+            let debounceTimer;
+
+            function renderConverterUI(animateNewCode = null) {
+                const fragment = document.createDocumentFragment();
+
+                activeCurrencies.forEach(code => {
+                    const item = document.createElement('div');
+                    item.className = 'multi-result-item';
+                    item.draggable = true;
+                    item.dataset.code = code;
+                    item.innerHTML = `
+                        <div class="currency-details">
+                            <div class="currency-code">${code}</div>
+                            <div class="currency-name">${supportedCurrencies[code].name}</div>
+                        </div>
+                        <div class="currency-input-wrapper">
+                            <input type="number" class="currency-input" data-code="${code}" step="any" value="${(code === baseCurrency ? baseAmount : (ratesCache[code] * baseAmount))?.toFixed(4) || '...'}">
+                        </div>
+                        <button class="remove-currency-btn" data-code="${code}" title="移除货币">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>`;
+                    
+                    if (code === animateNewCode) {
+                        item.classList.add('item-enter');
+                    }
+                    fragment.appendChild(item);
+                });
+                
+                currencyListContainer.innerHTML = '';
+                currencyListContainer.appendChild(fragment);
+
+                if (animateNewCode) {
+                    setTimeout(() => {
+                        const newItem = currencyListContainer.querySelector(`.multi-result-item[data-code="${animateNewCode}"]`);
+                        if (newItem) {
+                            newItem.classList.remove('item-enter');
+                        }
+                    }, 10);
+                }
+
+                const availableCurrencies = Object.keys(supportedCurrencies).filter(c => !activeCurrencies.includes(c));
+                if(availableCurrencies.length > 0) {
+                    addCurrencyWrapper.style.display = 'block';
+                    addCurrencyWrapper.style.marginTop = '16px';
+                    const addOptions = availableCurrencies.reduce((acc, curr) => { acc[curr] = supportedCurrencies[curr]; return acc; }, {});
+                    createCustomSelect(addCurrencyWrapper, addOptions, 'add-placeholder', {
+                        placeholder: '＋ 添加货币',
+                        onChangeCallback: (newCurrency) => {
+                            if (!activeCurrencies.includes(newCurrency)) {
+                                activeCurrencies.push(newCurrency);
+                                recalculateRates(baseCurrency, baseAmount, true, newCurrency);
+                            }
+                        }
+                    });
+                } else {
+                    addCurrencyWrapper.innerHTML = '';
+                    addCurrencyWrapper.style.display = 'none';
+                }
+            }
+            
+            function updateInputValues() {
+                currencyListContainer.querySelectorAll('.currency-input').forEach(input => {
+                    const code = input.dataset.code;
+                    if (code !== baseCurrency) {
+                        const value = (ratesCache[code] * baseAmount);
+                        if (document.activeElement !== input) {
+                           input.value = isNaN(value) ? '' : value.toFixed(4);
+                        }
+                    } else {
+                        if (document.activeElement !== input) {
+                            input.value = baseAmount;
+                        }
+                    }
+                });
+            }
+
+            async function recalculateRates(newBaseCode, newBaseAmount, forceRender = false, animateNewCode = null) {
+                baseCurrency = newBaseCode;
+                baseAmount = newBaseAmount;
+
+                const toCurrencies = activeCurrencies.filter(c => c !== baseCurrency).join(',');
+                if (!toCurrencies) {
+                    if (forceRender) renderConverterUI(animateNewCode);
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`https://api.frankfurter.app/latest?amount=1&from=${baseCurrency}&to=${toCurrencies}`);
+                    if (!response.ok) throw new Error('网络响应错误');
+                    const data = await response.json();
+                    ratesCache = data.rates;
+                    if (forceRender) {
+                        renderConverterUI(animateNewCode);
+                    } else {
+                        updateInputValues();
+                    }
+                } catch (error) {
+                    console.error("Recalculation failed:", error);
+                }
+            }
+            
+            // --- 5. 拖放排序逻辑 ---
+            currencyListContainer.addEventListener('dragstart', e => {
+                if(e.target.classList.contains('multi-result-item')) {
+                    setTimeout(() => e.target.classList.add('dragging'), 0);
+                }
+            });
+
+            currencyListContainer.addEventListener('dragend', e => {
+                if(e.target.classList.contains('multi-result-item')) {
+                    e.target.classList.remove('dragging');
+                }
+            });
+            
+            currencyListContainer.addEventListener('dragover', e => {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(currencyListContainer, e.clientY);
+                const dragging = document.querySelector('.dragging');
+                if (dragging) {
+                     if (afterElement == null) {
+                        currencyListContainer.appendChild(dragging);
+                    } else {
+                        currencyListContainer.insertBefore(dragging, afterElement);
+                    }
+                }
+            });
+
+            currencyListContainer.addEventListener('drop', e => {
+                e.preventDefault();
+                const newOrderedCodes = [...currencyListContainer.querySelectorAll('.multi-result-item')].map(item => item.dataset.code);
+                activeCurrencies = newOrderedCodes;
+            });
+
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.multi-result-item:not(.dragging)')];
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+
+            // --- 6. 事件委托 ---
+            currencyListContainer.addEventListener('input', (e) => {
+                if (e.target.classList.contains('currency-input')) {
+                    clearTimeout(debounceTimer);
+                    const input = e.target;
+                    debounceTimer = setTimeout(() => {
+                        const newBaseCode = input.dataset.code;
+                        const newBaseAmount = parseFloat(input.value);
+                        if (!isNaN(newBaseAmount)) {
+                            recalculateRates(newBaseCode, newBaseAmount);
+                        }
+                    }, 500);
+                }
+            });
+
+             currencyListContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('.remove-currency-btn');
+                if (btn) {
+                    const codeToRemove = btn.dataset.code;
+                    const itemToRemove = btn.parentElement;
+                    itemToRemove.classList.add('removing');
+                    itemToRemove.addEventListener('transitionend', () => {
+                         activeCurrencies = activeCurrencies.filter(c => c !== codeToRemove);
+                         if (baseCurrency === codeToRemove && activeCurrencies.length > 0) {
+                             baseCurrency = activeCurrencies[0];
+                         }
+                         recalculateRates(baseCurrency, baseAmount, true);
+                    }, { once: true });
+                }
+            });
+            
+            // --- 7. 历史图表视图逻辑 ---
+            const fromCurrencyChartWrapper = document.getElementById('from-currency-chart');
+            const toCurrencyChartWrapper = document.getElementById('to-currency-chart');
+            const chartContainer = document.getElementById('chart-container');
+            const chartCanvas = document.getElementById('rateChart');
+            const latestRateEl = document.getElementById('latest-rate');
+            const timeRangeControls = document.querySelector('.chart-controls');
+            let rateChart = null;
+            let chartTimeRange = 30;
+            let isChartDrawing = false; // Flag to prevent race conditions
+
+            timeRangeControls.querySelectorAll('.time-range-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    timeRangeControls.querySelector('.active').classList.remove('active');
+                    btn.classList.add('active');
+                    chartTimeRange = parseInt(btn.dataset.days, 10);
+                    drawChart();
+                });
+            });
+
+            async function drawChart() {
+                if (isChartDrawing) return;
+                isChartDrawing = true;
+
+                const fromCurrency = fromCurrencyChartWrapper.dataset.value;
+                const toCurrency = toCurrencyChartWrapper.dataset.value;
+
+                if (fromCurrency === toCurrency) {
+                    chartContainer.innerHTML = '请选择两种不同的货币。';
+                    latestRateEl.innerHTML = '';
+                    if (rateChart) rateChart.destroy();
+                    isChartDrawing = false;
+                    return;
+                }
+
+                if (rateChart) {
+                    rateChart.destroy();
+                    rateChart = null;
+                }
+                
+                const loader = document.createElement('div');
+                loader.className = 'loader';
+                chartContainer.innerHTML = '';
+                chartContainer.appendChild(loader);
+                latestRateEl.innerHTML = '';
+
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - chartTimeRange);
+
+                try {
+                    const historyPromise = fetch(`https://api.frankfurter.app/${startDate.toISOString().split('T')[0]}..${endDate.toISOString().split('T')[0]}?from=${fromCurrency}&to=${toCurrency}`);
+                    const latestPromise = fetch(`https://api.frankfurter.app/latest?from=${fromCurrency}&to=${toCurrency}`);
+                    
+                    const responses = await Promise.all([historyPromise, latestPromise]);
+                    if (!responses[0].ok || !responses[1].ok) throw new Error('网络响应错误');
+                    
+                    const historyData = await responses[0].json();
+                    const latestData = await responses[1].json();
+
+                    const labels = Object.keys(historyData.rates).sort();
+                    const chartData = labels.map(label => ({ x: label, y: historyData.rates[label][toCurrency] }));
+                    const latestRate = latestData.rates[toCurrency];
+                    const previousRate = chartData.length > 1 ? chartData[chartData.length - 2].y : latestRate;
+                    const change = latestRate - previousRate;
+                    const changePercent = (change / previousRate) * 100;
+                    
+                    const trendColor = change >= 0 ? 'var(--red-color)' : 'var(--green-color)';
+
+                    latestRateEl.innerHTML = `<span id="latest-rate-value" style="color:${trendColor};">${latestRate.toFixed(4)}</span>
+                        <span id="latest-rate-change" style="color:${trendColor};">${change >= 0 ? '+' : ''}${change.toFixed(4)} (${change >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)</span>`;
+                    
+                    chartContainer.innerHTML = '';
+                    chartContainer.appendChild(chartCanvas);
+                    
+                    const tooltipEl = document.createElement('div');
+                    tooltipEl.id = 'chart-tooltip';
+                    chartContainer.appendChild(tooltipEl);
+
+                    const ctx = chartCanvas.getContext('2d');
+                    const gradient = ctx.createLinearGradient(0, 0, 0, chartCanvas.offsetHeight);
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    
+                    const lineShadowPlugin = {
+                        id: 'lineShadow',
+                        beforeDraw: (chart) => {
+                            const ctx = chart.ctx;
+                            ctx.save();
+                            ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+                            ctx.shadowBlur = 20;
+                            ctx.shadowOffsetY = 8;
+                        },
+                        afterDraw: (chart) => chart.ctx.restore()
+                    };
+
+                    rateChart = new Chart(ctx, {
+                        type: 'line',
+                        data: { datasets: [{
+                            data: chartData, 
+                            borderColor: '#FFFFFF',
+                            backgroundColor: gradient,
+                            fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 5,
+                            pointHitRadius: 20, pointBackgroundColor: '#fff', pointBorderColor: '#FFFFFF'
+                        }] },
+                        plugins: [lineShadowPlugin],
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            interaction: { intersect: false, mode: 'index' },
+                            scales: {
+                                x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'MMM d' } }, ticks: { color: '#FFFFFF', font: { weight: '500' } }, grid: { display: false }, border: { color: 'rgba(255, 255, 255, 0.25)' } },
+                                y: { ticks: { color: '#FFFFFF', padding: 10, font: { weight: '500' } }, grid: { color: 'rgba(255, 255, 255, 0.15)', borderDash: [4, 8] }, border: { display: false } }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { enabled: false }
+                            },
+                            onHover: (event, chartElement, chart) => {
+                                const currentTooltipEl = document.getElementById('chart-tooltip');
+                                if (currentTooltipEl) {
+                                    currentTooltipEl.style.opacity = chartElement.length ? 1 : 0;
+                                    if (chartElement.length) {
+                                        const {ctx, chartArea: {top, bottom}} = chart;
+                                        const x = chartElement[0].element.x;
+                                        const index = chartElement[0].index;
+                                        const dataPoint = chartData[index];
+                                        const prevDataPoint = chartData[index-1] || dataPoint;
+                                        const changeHover = dataPoint.y - prevDataPoint.y;
+                                        const changePercentHover = (changeHover / prevDataPoint.y) * 100;
+                                        const hoverColor = changeHover >= 0 ? 'var(--red-color)' : 'var(--green-color)';
+
+                                        currentTooltipEl.innerHTML = `<div class="date">${dataPoint.x}</div>
+                                            <div><strong style="color:${hoverColor}">${dataPoint.y.toFixed(4)}</strong>
+                                            <span style="font-size:0.9em; color:${hoverColor}"> (${changeHover >= 0 ? '+' : ''}${changePercentHover.toFixed(2)}%)</span></div>`;
+                                        
+                                        ctx.save();
+                                        ctx.beginPath();
+                                        ctx.moveTo(x, top);
+                                        ctx.lineTo(x, bottom);
+                                        ctx.lineWidth = 1;
+                                        ctx.setLineDash([3,3]);
+                                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                                        ctx.stroke();
+                                        ctx.restore();
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch(error) {
+                    console.error("Chart drawing failed:", error);
+                    chartContainer.innerHTML = '无法加载图表数据。';
+                } finally {
+                    isChartDrawing = false;
+                }
+            }
+
+            // --- 8. 初始化函数 ---
+            function init() {
+                // 初始化换算视图
+                recalculateRates('USD', 100, true);
+
+                // 初始化图表视图
+                createCustomSelect(fromCurrencyChartWrapper, supportedCurrencies, 'USD', { onChangeCallback: drawChart });
+                createCustomSelect(toCurrencyChartWrapper, supportedCurrencies, 'CNY', { onChangeCallback: drawChart });
+
+                // **新增** 首次访问教程
+                const tutorialOverlay = document.getElementById('tutorial-overlay');
+                const closeTutorialBtn = document.getElementById('close-tutorial');
+                if (!localStorage.getItem('hasVisited')) {
+                    tutorialOverlay.classList.add('visible');
+                }
+                closeTutorialBtn.addEventListener('click', () => {
+                    tutorialOverlay.classList.remove('visible');
+                    localStorage.setItem('hasVisited', 'true');
+                });
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
+
+

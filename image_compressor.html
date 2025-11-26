@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片压缩 & 格式转换器</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .glass { backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); }
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1); } }
+        
+        input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 8px; background: rgba(0, 0, 0, 0.2); border-radius: 4px; }
+        .dark input[type="range"]::-webkit-slider-runnable-track { background: rgba(255, 255, 255, 0.1); }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; margin-top: -6px; width: 20px; height: 20px;
+            background: #ffffff; border-radius: 50%; cursor: pointer;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+        
+        #drop-zone { transition: background-color 0.3s, border-color 0.3s; }
+        #drop-zone.drag-over {
+            background-color: rgba(255, 255, 255, 0.3); border-color: #3b82f6;
+        }
+        .dark #drop-zone.drag-over { background-color: rgba(0, 0, 0, 0.3); }
+
+        .format-btn.active { background-color: #3b82f6; color: white; }
+        .dark .format-btn.active { background-color: #3b82f6; }
+
+        .view { transition: opacity 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+        .bouncy-btn { transition: background-color 0.2s, color 0.2s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .bouncy-btn:active { transform: scale(0.92); }
+        
+        @keyframes valuePop {
+            from { transform: translateY(5px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .value-pop { animation: valuePop 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="overflow-hidden bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+
+    <div class="h-screen w-screen p-4 md:p-8 flex items-center justify-center pop-in">
+        <div class="w-full h-full max-w-5xl glass bg-white/70 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-slate-800 dark:text-white rounded-3xl shadow-2xl relative">
+            
+            <!-- Upload View -->
+            <div id="upload-view" class="view absolute inset-0 w-full h-full flex flex-col items-center justify-center p-8">
+                <input type="file" id="file-input" class="hidden" accept="image/png, image/jpeg, image/webp">
+                <div id="drop-zone" class="w-full h-full border-4 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer">
+                    <svg class="w-24 h-24 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <p class="mt-4 text-2xl font-bold">拖拽图片到这里</p>
+                    <p class="mt-2 text-slate-500 dark:text-slate-400">或点击选择文件</p>
+                </div>
+            </div>
+
+            <!-- Editor View -->
+            <div id="editor-view" class="view absolute inset-0 w-full h-full p-8 grid grid-cols-1 md:grid-cols-2 gap-8 opacity-0 scale-95 pointer-events-none">
+                <!-- Image Preview -->
+                <div class="flex items-center justify-center bg-black/5 dark:bg-white/5 rounded-2xl p-4 overflow-hidden">
+                    <img id="image-preview" class="max-w-full max-h-full object-contain">
+                </div>
+                <!-- Controls Panel -->
+                <div class="flex flex-col gap-6">
+                    <h2 class="text-2xl font-bold text-center">压缩选项</h2>
+                    <!-- Format -->
+                    <div>
+                        <label class="font-semibold">目标格式</label>
+                        <div id="format-selector" class="grid grid-cols-3 gap-2 p-1 mt-2 bg-black/5 dark:bg-white/5 rounded-lg">
+                            <button data-format="jpeg" class="format-btn active rounded-md py-2 font-semibold bouncy-btn">JPG</button>
+                            <button data-format="png" class="format-btn rounded-md py-2 font-semibold bouncy-btn">PNG</button>
+                            <button data-format="webp" class="format-btn rounded-md py-2 font-semibold bouncy-btn">WEBP</button>
+                        </div>
+                    </div>
+                    <!-- Quality -->
+                    <div id="quality-control">
+                        <div class="flex justify-between items-center">
+                            <label class="font-semibold">质量</label>
+                            <span id="quality-value" class="text-lg font-bold">80%</span>
+                        </div>
+                        <input type="range" id="quality-slider" min="1" max="100" value="80" class="w-full mt-2">
+                    </div>
+                    <!-- Info -->
+                    <div class="space-y-3 text-sm p-4 bg-black/5 dark:bg-white/5 rounded-lg">
+                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">原始尺寸</span><span id="original-size">--</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">压缩后尺寸</span><span id="new-size" class="font-bold">--</span></div>
+                         <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">体积减少</span><span id="reduction-percent" class="font-bold text-emerald-500">--</span></div>
+                    </div>
+                    <!-- Actions -->
+                    <div class="flex-grow flex items-end gap-4">
+                        <button id="download-btn" class="w-full py-3 text-lg font-semibold bg-sky-500 text-white rounded-lg hover:bg-sky-600 bouncy-btn disabled:bg-sky-400 disabled:cursor-wait">下载图片</button>
+                        <button id="reset-btn" class="w-1/3 py-3 font-semibold bg-black/5 dark:bg-white/5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 bouncy-btn">重置</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <script>
+        // --- Dark Mode ---
+        const applyTheme = () => { if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); } };
+        applyTheme(); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+        
+        // --- State ---
+        let state = { file: null, image: null, format: 'jpeg', quality: 0.8, originalSize: 0, newSize: 0 };
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // --- DOM Elements ---
+        const uploadView = document.getElementById('upload-view');
+        const editorView = document.getElementById('editor-view');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const imagePreview = document.getElementById('image-preview');
+        const formatSelector = document.getElementById('format-selector');
+        const qualityControl = document.getElementById('quality-control');
+        const qualitySlider = document.getElementById('quality-slider');
+        const qualityValue = document.getElementById('quality-value');
+        const originalSize = document.getElementById('original-size');
+        const newSize = document.getElementById('new-size');
+        const reductionPercent = document.getElementById('reduction-percent');
+        const downloadBtn = document.getElementById('download-btn');
+        const resetBtn = document.getElementById('reset-btn');
+
+        // --- UI Functions ---
+        const switchView = (view) => {
+            const isEditor = view === 'editor';
+            
+            uploadView.classList.toggle('opacity-0', isEditor);
+            uploadView.classList.toggle('scale-95', isEditor);
+            uploadView.classList.toggle('pointer-events-none', isEditor);
+
+            editorView.classList.toggle('opacity-0', !isEditor);
+            editorView.classList.toggle('scale-95', !isEditor);
+            editorView.classList.toggle('pointer-events-none', !isEditor);
+        };
+
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024; const sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+        
+        const updateInfo = (isLoading = false) => {
+            originalSize.textContent = formatBytes(state.originalSize);
+            
+            newSize.classList.remove('value-pop', 'animate-pulse');
+            reductionPercent.classList.remove('value-pop', 'animate-pulse');
+            void newSize.offsetWidth;
+
+            if (isLoading) {
+                newSize.textContent = '计算中...';
+                reductionPercent.textContent = '计算中...';
+                newSize.classList.add('animate-pulse');
+                reductionPercent.classList.add('animate-pulse');
+            } else {
+                newSize.textContent = formatBytes(state.newSize);
+                const reduction = state.originalSize > 0 ? ((state.originalSize - state.newSize) / state.originalSize) * 100 : 0;
+                reductionPercent.textContent = `${reduction.toFixed(1)}%`;
+                
+                newSize.classList.add('value-pop');
+                reductionPercent.classList.add('value-pop');
+            }
+        };
+        
+        // --- Core Logic ---
+        const handleFile = (file) => {
+            if (!file || !file.type.startsWith('image/')) return;
+            state.file = file;
+            state.originalSize = file.size;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.image = img;
+                    canvas.width = img.width; canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    imagePreview.src = e.target.result;
+                    switchView('editor');
+                    processImage();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        const processImage = async () => {
+            if (!state.image) return;
+
+            updateInfo(true);
+            downloadBtn.disabled = true;
+
+            const mimeType = `image/${state.format}`;
+            
+            setTimeout(() => {
+                canvas.toBlob((blob) => {
+                    downloadBtn.disabled = false;
+                    if(blob){
+                        state.newSize = blob.size;
+                        updateInfo(false);
+                    } else {
+                        newSize.classList.remove('animate-pulse');
+                        reductionPercent.classList.remove('animate-pulse');
+                        newSize.textContent = '错误';
+                        reductionPercent.textContent = 'N/A';
+                    }
+                }, mimeType, state.quality);
+            }, 50);
+        };
+        
+        // --- Event Listeners ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, e => e.preventDefault()));
+        ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over')));
+        ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over')));
+        dropZone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+        
+        formatSelector.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                state.format = e.target.dataset.format;
+                qualityControl.style.visibility = state.format === 'png' ? 'hidden' : 'visible';
+                processImage();
+            }
+        });
+        
+        qualitySlider.addEventListener('input', (e) => {
+            qualityValue.textContent = `${e.target.value}%`;
+        });
+
+        qualitySlider.addEventListener('change', (e) => {
+            state.quality = e.target.value / 100;
+            processImage();
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const mimeType = `image/${state.format}`;
+            const link = document.createElement('a');
+            const fileName = state.file.name.split('.').slice(0, -1).join('.');
+            link.download = `${fileName}_compressed.${state.format === 'jpeg' ? 'jpg' : state.format}`;
+            link.href = canvas.toDataURL(mimeType, state.quality);
+            link.click();
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            state = { file: null, image: null, format: 'jpeg', quality: 0.8, originalSize: 0, newSize: 0 };
+            fileInput.value = '';
+            document.querySelector('.format-btn.active').classList.remove('active');
+            document.querySelector('.format-btn[data-format="jpeg"]').classList.add('active');
+            qualitySlider.value = 80;
+            qualityValue.textContent = '80%';
+            qualityControl.style.visibility = 'visible';
+            switchView('upload');
+        });
+    </script>
+</body>
+</html>
+

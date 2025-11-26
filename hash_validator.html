@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件哈希校验工具</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 CryptoJS 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+        }
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Animations */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.98); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+        @keyframes pulse-border {
+            0% { border-color: rgba(99, 102, 241, 0.2); }
+            50% { border-color: rgba(99, 102, 241, 0.8); }
+            100% { border-color: rgba(99, 102, 241, 0.2); }
+        }
+        .drag-active {
+            animation: pulse-border 1.5s infinite;
+            background-color: rgba(99, 102, 241, 0.05);
+        }
+        .dark .drag-active {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .algo-btn.active {
+            background-color: rgba(99, 102, 241, 0.1);
+            border-color: #6366f1;
+            color: #4f46e5;
+        }
+        .dark .algo-btn.active {
+            background-color: rgba(99, 102, 241, 0.3);
+            border-color: #818cf8;
+            color: #e0e7ff;
+        }
+        
+        /* Hash Text Monospace with wrapping */
+        .hash-value {
+            font-variant-numeric: tabular-nums;
+            word-break: break-all; /* 强制长哈希值换行 */
+            white-space: normal;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-slate-50 to-gray-200 dark:from-slate-900 dark:to-cyan-900 transition-colors duration-300 text-slate-800 dark:text-white">
+
+    <!-- Main Container: Flex Row on Desktop, Column on Mobile -->
+    <div class="w-full max-w-6xl h-[90vh] max-h-[800px] rounded-3xl p-6 md:p-8 glass bg-white/80 dark:bg-black/40 border border-white/60 dark:border-white/10 shadow-2xl space-y-6 md:space-y-0 md:flex md:gap-8 pop-in overflow-hidden flex-col md:flex-row">
+
+        <!-- Left Sidebar: Controls (Fixed Width on Desktop) -->
+        <div class="w-full md:w-80 shrink-0 flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-1 pb-2">
+            
+            <!-- Title -->
+            <div>
+                <h1 class="text-2xl font-bold tracking-wider text-slate-900 dark:text-white">文件哈希校验</h1>
+                <!-- Updated description -->
+                <p class="text-xs text-slate-500 dark:text-white/60 mt-1">简单，高效，轻松校验文件。</p>
+            </div>
+
+            <!-- Drop Zone -->
+            <div id="drop-zone" class="group relative w-full aspect-[2/1] md:aspect-square border-2 border-dashed border-slate-300 dark:border-white/20 rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 hover:border-indigo-400 dark:hover:border-cyan-400 cursor-pointer bg-white/40 dark:bg-white/5">
+                <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                
+                <div class="pointer-events-none flex flex-col items-center justify-center gap-3 p-4">
+                    <div class="p-3 rounded-full bg-indigo-50 dark:bg-white/10 text-indigo-500 dark:text-cyan-300 group-hover:scale-110 transition-transform duration-300">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-slate-700 dark:text-white">点击或拖拽文件</h3>
+                    <p class="text-xs text-slate-400 dark:text-white/50">支持大文件分片计算</p>
+                </div>
+            </div>
+
+            <!-- Algorithm Selectors -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-xs font-bold text-slate-500 dark:text-white/60 uppercase tracking-wider">计算算法</label>
+                    <!-- Optional: Reset/Recalculate hint -->
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="algo-btn active flex-grow text-center px-3 py-2 rounded-lg border border-slate-300 dark:border-white/20 text-sm font-medium transition-all duration-200 hover:bg-slate-100 dark:hover:bg-white/10" data-algo="MD5">MD5</button>
+                    <button class="algo-btn active flex-grow text-center px-3 py-2 rounded-lg border border-slate-300 dark:border-white/20 text-sm font-medium transition-all duration-200 hover:bg-slate-100 dark:hover:bg-white/10" data-algo="SHA-1">SHA-1</button>
+                    <button class="algo-btn active flex-grow text-center px-3 py-2 rounded-lg border border-slate-300 dark:border-white/20 text-sm font-medium transition-all duration-200 hover:bg-slate-100 dark:hover:bg-white/10" data-algo="SHA-256">SHA-256</button>
+                    <button class="algo-btn flex-grow text-center px-3 py-2 rounded-lg border border-slate-300 dark:border-white/20 text-sm font-medium transition-all duration-200 hover:bg-slate-100 dark:hover:bg-white/10 opacity-60 hover:opacity-100" data-algo="SHA-512">SHA-512</button>
+                </div>
+                <p class="text-[10px] text-slate-400 dark:text-white/40 text-right px-1">更改配置后，请重新选择文件</p>
+            </div>
+
+            <!-- Compare Input -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-slate-500 dark:text-white/60 uppercase tracking-wider">校验比对</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-4 w-4 text-slate-400 dark:text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <input type="text" id="compare-input" placeholder="粘贴哈希值..." class="block w-full pl-9 pr-3 py-2.5 border border-slate-200 dark:border-white/10 rounded-xl text-sm bg-white dark:bg-black/20 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-cyan-500/50 transition">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Content: Results (Flex Grow) -->
+        <div class="flex-grow flex flex-col min-w-0 bg-slate-50/50 dark:bg-white/5 rounded-2xl border border-slate-200/50 dark:border-white/5 overflow-hidden relative shadow-inner">
+            
+            <!-- Header: File Info & Progress -->
+            <div id="status-header" class="bg-white/60 dark:bg-black/20 border-b border-slate-200 dark:border-white/5 p-4 backdrop-blur-md z-10 shrink-0">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <p id="file-name" class="font-semibold text-slate-800 dark:text-white truncate text-sm">未选择文件</p>
+                            <p id="file-size" class="text-xs text-slate-500 dark:text-white/50">--</p>
+                        </div>
+                    </div>
+                    <span id="progress-text" class="font-mono font-bold text-indigo-600 dark:text-cyan-400 text-lg">0%</span>
+                </div>
+                <div class="h-1 w-full bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
+                    <div id="progress-fill" class="h-full bg-indigo-500 dark:bg-cyan-500 w-0 transition-all duration-100 ease-out"></div>
+                </div>
+            </div>
+
+            <!-- Results List -->
+            <div id="results-area" class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-4 relative">
+                <!-- Empty State -->
+                <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-white/30 space-y-2 opacity-60 pointer-events-none">
+                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <p class="text-sm">等待文件输入...</p>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- Theme Init ---
+        const applyTheme = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+        applyTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+        // --- Elements ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileNameEl = document.getElementById('file-name');
+        const fileSizeEl = document.getElementById('file-size');
+        const progressText = document.getElementById('progress-text');
+        const progressFill = document.getElementById('progress-fill');
+        const resultsArea = document.getElementById('results-area');
+        const compareInput = document.getElementById('compare-input');
+        const algoBtns = document.querySelectorAll('.algo-btn');
+
+        // --- Configuration ---
+        const CHUNK_SIZE = 1024 * 1024 * 10; // 10MB chunk size
+        const allAlgos = {
+            'MD5': { create: () => CryptoJS.algo.MD5.create() },
+            'SHA-1': { create: () => CryptoJS.algo.SHA1.create() },
+            'SHA-256': { create: () => CryptoJS.algo.SHA256.create() },
+            'SHA-512': { create: () => CryptoJS.algo.SHA512.create() }
+        };
+
+        // --- State ---
+        let activeAlgos = ['MD5', 'SHA-1', 'SHA-256']; // Default active
+        let currentFile = null; 
+        let currentTaskID = 0; 
+
+        // --- Algo Selection Logic (Updated: NO Hot Reload) ---
+        algoBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const algo = btn.dataset.algo;
+                if (btn.classList.contains('active')) {
+                    if (activeAlgos.length > 1) {
+                        btn.classList.remove('active');
+                        btn.classList.add('opacity-60');
+                        activeAlgos = activeAlgos.filter(a => a !== algo);
+                        // Removed: if (currentFile) processFile(currentFile);
+                    }
+                } else {
+                    btn.classList.add('active');
+                    btn.classList.remove('opacity-60');
+                    activeAlgos.push(algo);
+                    // Removed: if (currentFile) processFile(currentFile);
+                }
+            });
+        });
+
+        // --- Helper: Format Size ---
+        const formatSize = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        // --- Helper: Create Result Card ---
+        const createResultCard = (algoName) => {
+            const div = document.createElement('div');
+            div.className = 'bg-white dark:bg-white/5 rounded-xl p-4 border border-slate-200 dark:border-white/5 transition-all duration-300 hover:border-indigo-300 dark:hover:border-cyan-500/30 shadow-sm relative z-10'; 
+            div.id = `result-row-${algoName}`;
+            
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-slate-500 dark:text-white/60 uppercase tracking-wider bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded">${algoName}</span>
+                    <div class="flex gap-2">
+                        <button class="copy-btn text-xs flex items-center gap-1 text-indigo-600 dark:text-cyan-400 hover:bg-indigo-50 dark:hover:bg-white/10 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            <span>复制</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="relative group cursor-text">
+                    <div class="hash-value w-full font-mono text-sm md:text-base text-slate-400 dark:text-white/40 leading-relaxed select-all" id="display-${algoName}">等待计算...</div>
+                </div>
+            `;
+            
+            const btn = div.querySelector('.copy-btn');
+            const display = div.querySelector(`#display-${algoName}`);
+            
+            btn.onclick = () => {
+                const text = display.textContent;
+                if(text === '等待计算...' || text === '计算中...') return;
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    const span = btn.querySelector('span');
+                    const originalText = span.textContent;
+                    span.textContent = '已复制!';
+                    btn.classList.add('text-emerald-600', 'dark:text-emerald-400');
+                    setTimeout(() => {
+                        span.textContent = originalText;
+                        btn.classList.remove('text-emerald-600', 'dark:text-emerald-400');
+                    }, 2000);
+                }).catch(() => {
+                     const textarea = document.createElement('textarea');
+                     textarea.value = text;
+                     document.body.appendChild(textarea);
+                     textarea.select();
+                     document.execCommand('copy');
+                     document.body.removeChild(textarea);
+                });
+            };
+            
+            return div;
+        };
+
+        // --- Core Logic ---
+        const processFile = (file) => {
+            currentFile = file; 
+            currentTaskID++; 
+            const thisTaskID = currentTaskID;
+
+            // UI Reset
+            resultsArea.innerHTML = ''; 
+
+            fileNameEl.textContent = file.name;
+            fileSizeEl.textContent = formatSize(file.size);
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            compareInput.value = '';
+
+            const sortedActiveAlgos = activeAlgos.sort();
+            const hashers = sortedActiveAlgos.map(name => ({ 
+                name, 
+                instance: allAlgos[name].create() 
+            }));
+            
+            hashers.forEach(h => {
+                resultsArea.appendChild(createResultCard(h.name));
+            });
+
+            let offset = 0;
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                if (thisTaskID !== currentTaskID) return;
+
+                const arrayBuffer = e.target.result;
+                const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+
+                hashers.forEach(h => h.instance.update(wordArray));
+
+                offset += arrayBuffer.byteLength;
+                
+                const progress = Math.min((offset / file.size) * 100, 100);
+                progressFill.style.width = `${progress}%`;
+                progressText.textContent = `${Math.round(progress)}%`;
+
+                if (offset < file.size) {
+                    setTimeout(() => { readNextChunk(); }, 5); 
+                } else {
+                    finalizeHashes(hashers);
+                    // Clear input to allow re-selection
+                    fileInput.value = ''; 
+                }
+            };
+
+            reader.onerror = () => { alert("读取文件出错！"); fileInput.value = ''; };
+
+            const readNextChunk = () => {
+                if (thisTaskID !== currentTaskID) return;
+                const slice = file.slice(offset, offset + CHUNK_SIZE);
+                reader.readAsArrayBuffer(slice);
+            };
+
+            readNextChunk();
+        };
+
+        const finalizeHashes = (hashers) => {
+            hashers.forEach(h => {
+                const hashValue = h.instance.finalize().toString();
+                const card = document.getElementById(`result-row-${h.name}`);
+                if(card) {
+                    const display = card.querySelector(`#display-${h.name}`);
+                    const btn = card.querySelector('.copy-btn');
+                    
+                    display.textContent = hashValue;
+                    display.classList.remove('text-slate-400', 'dark:text-white/40');
+                    display.classList.add('text-slate-900', 'dark:text-white', 'font-bold');
+                    btn.disabled = false;
+                }
+            });
+            checkComparison();
+        };
+
+        // --- Compare Logic ---
+        const checkComparison = () => {
+            const target = compareInput.value.trim().toLowerCase();
+            
+            document.querySelectorAll('[id^="result-row-"]').forEach(row => {
+                const display = row.querySelector('.hash-value');
+                if (!display) return;
+                const val = display.textContent.trim();
+                
+                row.classList.remove('ring-2', 'ring-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/20', 'border-emerald-500');
+                
+                if (target && val === target) {
+                    row.classList.add('ring-2', 'ring-emerald-500', 'bg-emerald-50', 'dark:bg-emerald-900/20', 'border-emerald-500');
+                }
+            });
+        };
+
+        compareInput.addEventListener('input', checkComparison);
+
+        // --- Event Listeners ---
+        const handleFile = (file) => { if (file) processFile(file); };
+
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); });
+        });
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-active'));
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-active'));
+        });
+
+        dropZone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]));
+
+    </script>
+</body>
+</html>

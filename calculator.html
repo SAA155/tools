@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>毛玻璃实时计算器</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自定义样式 */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* 玻璃效果 */
+        .glass {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        
+        /* 自定义滚动条 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(150, 150, 150, 0.4);
+            border-radius: 20px;
+        }
+        
+        /* 新历史记录项的入场动画 */
+        @keyframes slideInFade {
+            from {
+                opacity: 0;
+                transform: translateY(-15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .new-history-item {
+            animation: slideInFade 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        /* 显示屏数字更新的动画 */
+        @keyframes popIn {
+            0% { transform: scale(0.98); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.2s ease-out;
+        }
+
+        /* 新增：用于清除表达式和结果的动画 */
+        @keyframes quickFadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .clearing {
+            animation: quickFadeOut 0.2s ease-in-out forwards;
+        }
+
+        /* 新增：用于历史记录项消失的动画 */
+        @keyframes itemFadeOut {
+            to {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+        }
+        .history-item-exit {
+            animation: itemFadeOut 0.3s ease-in forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-gray-100 to-blue-200 dark:from-gray-800 dark:to-slate-900 transition-colors duration-300">
+
+    <!-- 主应用容器 -->
+    <div class="w-full max-w-sm rounded-3xl p-5 glass bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/10 shadow-2xl flex flex-col h-[40rem]">
+
+        <!-- 视图容器 (切换区域) -->
+        <div class="flex-grow relative overflow-hidden">
+            <!-- 计算器视图 -->
+            <div id="calculator-view" class="absolute top-0 left-0 w-full h-full transition-all duration-300 ease-in-out flex flex-col">
+                <!-- 显示屏 -->
+                <div class="bg-transparent text-slate-800 dark:text-white text-right mb-4 h-28 flex flex-col justify-end p-4 rounded-xl flex-shrink-0">
+                    <div id="expression" class="custom-scrollbar text-2xl opacity-60 dark:opacity-70 font-light mb-1 overflow-x-auto overflow-y-hidden whitespace-nowrap"></div>
+                    <div id="result" class="text-5xl font-bold truncate">0</div>
+                </div>
+                <!-- 按钮网格 -->
+                <div class="grid grid-cols-4 gap-4 text-slate-800 dark:text-white flex-grow">
+                    <button data-value="C" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/20 hover:bg-gray-500/30 dark:bg-gray-500/40 dark:hover:bg-gray-500/50">C</button>
+                    <button data-value="DEL" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/20 hover:bg-gray-500/30 dark:bg-gray-500/40 dark:hover:bg-gray-500/50">DEL</button>
+                    <button data-value="%" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/20 hover:bg-gray-500/30 dark:bg-gray-500/40 dark:hover:bg-gray-500/50">%</button>
+                    <button data-value="/" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-orange-500 hover:bg-orange-600 text-white">÷</button>
+
+                    <button data-value="7" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">7</button>
+                    <button data-value="8" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">8</button>
+                    <button data-value="9" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">9</button>
+                    <button data-value="*" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-orange-500 hover:bg-orange-600 text-white">×</button>
+                    
+                    <button data-value="4" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">4</button>
+                    <button data-value="5" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">5</button>
+                    <button data-value="6" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">6</button>
+                    <button data-value="-" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-orange-500 hover:bg-orange-600 text-white">-</button>
+
+                    <button data-value="1" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">1</button>
+                    <button data-value="2" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">2</button>
+                    <button data-value="3" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">3</button>
+                    <button data-value="+" class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-orange-500 hover:bg-orange-600 text-white">+</button>
+                    
+                    <button data-value="0" class="col-span-2 p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">0</button>
+                    <button data-value="." class="p-4 text-2xl transition-all duration-150 rounded-xl active:scale-95 bg-gray-500/10 hover:bg-gray-500/20 dark:bg-gray-500/20 dark:hover:bg-gray-500/30">.</button>
+                    <div class="w-full h-full"></div>
+                </div>
+            </div>
+            
+            <!-- 历史记录视图 -->
+            <div id="history-view" class="absolute top-0 left-0 w-full h-full transition-all duration-300 ease-in-out opacity-0 translate-x-8 pointer-events-none flex flex-col">
+                <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                    <h2 class="text-xl font-bold text-slate-800 dark:text-white">计算历史</h2>
+                    <button id="clear-history" class="text-sm px-3 py-1 rounded-lg bg-gray-500/20 hover:bg-gray-500/30 dark:bg-gray-500/40 dark:hover:bg-gray-500/50 text-slate-800 dark:text-white transition-colors">清除</button>
+                </div>
+                <div id="history-content" class="flex-grow overflow-y-auto custom-scrollbar pr-2 text-slate-800 dark:text-white">
+                    <!-- 历史记录 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 导航选项卡 -->
+        <div class="flex-shrink-0 mt-4 p-1 rounded-full bg-black/10 flex items-center justify-around text-slate-800 dark:text-white text-sm font-semibold">
+            <button id="show-calc-btn" class="w-1/2 p-2 rounded-full transition-colors duration-300 bg-white/40 dark:bg-white/20">计算器</button>
+            <button id="show-history-btn" class="w-1/2 p-2 rounded-full transition-colors duration-300 opacity-60">历史</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素
+        const expressionDisplay = document.getElementById('expression');
+        const resultDisplay = document.getElementById('result');
+        const buttons = document.querySelector('.grid');
+        const historyContent = document.getElementById('history-content');
+        const clearHistoryBtn = document.getElementById('clear-history');
+        const calculatorView = document.getElementById('calculator-view');
+        const historyView = document.getElementById('history-view');
+        const showCalcBtn = document.getElementById('show-calc-btn');
+        const showHistoryBtn = document.getElementById('show-history-btn');
+
+        // 状态变量
+        let currentExpression = '';
+        let history = [];
+        const operators = ['+', '-', '*', '/', '%'];
+
+        // --- 功能函数 ---
+        
+        // 动画函数
+        const animateDisplay = (element) => {
+            element.classList.remove('pop-in');
+            void element.offsetWidth; // 触发重绘
+            element.classList.add('pop-in');
+        };
+
+        // 计算逻辑
+        const calculate = () => {
+            if (!currentExpression) {
+                resultDisplay.textContent = '0';
+                return;
+            }
+            try {
+                let evalExpression = currentExpression.replace(/×/g, '*').replace(/÷/g, '/');
+                if (operators.includes(evalExpression.slice(-1))) {
+                    evalExpression = evalExpression.slice(0, -1);
+                }
+                if (!evalExpression) return;
+                
+                evalExpression = evalExpression.replace(/%/g, '/100');
+                const result = new Function('return ' + evalExpression)();
+                const formattedResult = parseFloat(result.toPrecision(12));
+                resultDisplay.textContent = formattedResult.toLocaleString('en-US');
+                animateDisplay(resultDisplay);
+            } catch (error) {}
+        };
+
+        // 更新显示
+        const updateDisplay = () => {
+            expressionDisplay.textContent = currentExpression.replace(/\*/g, '×').replace(/\//g, '÷');
+            expressionDisplay.scrollLeft = expressionDisplay.scrollWidth;
+        };
+        
+        // 渲染历史记录
+        const renderHistory = () => {
+            historyContent.innerHTML = '';
+            if (history.length === 0) {
+                historyContent.innerHTML = `<div class="text-center opacity-50 pt-16">暂无历史记录</div>`;
+                return;
+            }
+            [...history].reverse().forEach((item, index) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'mb-4 p-3 rounded-lg bg-white/10 dark:bg-black/20';
+                if (index === 0) {
+                    historyItem.classList.add('new-history-item');
+                }
+                historyItem.innerHTML = `
+                    <div class="text-sm opacity-70 break-words">${item.expression}</div>
+                    <div class="text-xl font-semibold text-right">${item.result}</div>
+                `;
+                historyContent.appendChild(historyItem);
+            });
+        };
+
+        // --- 事件监听 ---
+
+        // 按钮网格事件
+        buttons.addEventListener('click', (event) => {
+            if (!event.target.matches('button')) return;
+            const value = event.target.dataset.value;
+
+            if (value === 'C') {
+                if (currentExpression && resultDisplay.textContent !== '0') {
+                    history.push({ expression: expressionDisplay.textContent, result: resultDisplay.textContent });
+                    renderHistory();
+                }
+                if (currentExpression || resultDisplay.textContent !== '0') {
+                    expressionDisplay.classList.add('clearing');
+                    resultDisplay.classList.add('clearing');
+
+                    setTimeout(() => {
+                        currentExpression = '';
+                        resultDisplay.textContent = '0';
+                        updateDisplay();
+                        
+                        expressionDisplay.classList.remove('clearing');
+                        resultDisplay.classList.remove('clearing');
+                        animateDisplay(resultDisplay);
+                    }, 200);
+                }
+            } else if (value === 'DEL') {
+                currentExpression = currentExpression.slice(0, -1);
+                updateDisplay();
+                calculate();
+            } else if (value === '.') {
+                const parts = currentExpression.split(/[+\-*/%]/);
+                if (!parts[parts.length - 1].includes('.')) {
+                    currentExpression += value;
+                    updateDisplay();
+                    calculate();
+                }
+            } else {
+                const lastChar = currentExpression.slice(-1);
+                if (operators.includes(value) && !currentExpression && value !== '-') return;
+                if (operators.includes(value) && operators.includes(lastChar)) {
+                   currentExpression = currentExpression.slice(0, -1) + value;
+                } else {
+                    currentExpression += value;
+                }
+                updateDisplay();
+                calculate();
+            }
+        });
+        
+        // 清除历史
+        clearHistoryBtn.addEventListener('click', () => {
+            const items = historyContent.querySelectorAll('.mb-4.p-3');
+            if (items.length > 0) {
+                items.forEach(item => {
+                    item.classList.add('history-item-exit');
+                });
+                setTimeout(() => {
+                    history = [];
+                    renderHistory();
+                }, 300);
+            }
+        });
+
+        // 视图切换
+        showHistoryBtn.addEventListener('click', () => {
+            historyView.classList.remove('opacity-0', 'translate-x-8', 'pointer-events-none');
+            calculatorView.classList.add('opacity-0', '-translate-x-8', 'pointer-events-none');
+            showHistoryBtn.classList.remove('opacity-60');
+            showHistoryBtn.classList.add('bg-white/40', 'dark:bg-white/20');
+            showCalcBtn.classList.add('opacity-60');
+            showCalcBtn.classList.remove('bg-white/40', 'dark:bg-white/20');
+        });
+
+        showCalcBtn.addEventListener('click', () => {
+            calculatorView.classList.remove('opacity-0', '-translate-x-8', 'pointer-events-none');
+            historyView.classList.add('opacity-0', 'translate-x-8', 'pointer-events-none');
+            showCalcBtn.classList.remove('opacity-60');
+            showCalcBtn.classList.add('bg-white/40', 'dark:bg-white/20');
+            showHistoryBtn.classList.add('opacity-60');
+            showHistoryBtn.classList.remove('bg-white/40', 'dark:bg-white/20');
+        });
+
+        // 初始化
+        renderHistory();
+    </script>
+</body>
+</html>
+

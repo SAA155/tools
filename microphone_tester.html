@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麦克风检测工具</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+        }
+        #visualizer {
+            display: block;
+            width: 100%;
+            height: 150px;
+            /* Light mode: subtle slate bg */
+            background-color: rgba(241, 245, 249, 0.5);
+            border-radius: 0.75rem;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        .dark #visualizer {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: none;
+        }
+        
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-backdrop.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-backdrop.visible .modal-content {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+
+    <div class="w-full max-w-md rounded-3xl p-6 glass bg-white/80 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white shadow-2xl shadow-slate-200/50 dark:shadow-black/50 space-y-6 text-center">
+
+        <h1 class="text-3xl font-bold tracking-wider text-slate-900 dark:text-white">麦克风检测</h1>
+        
+        <p id="status" class="text-lg text-slate-500 dark:text-white/80 h-8 transition-all duration-300">点击 "开始测试" 来启动</p>
+
+        <canvas id="visualizer"></canvas>
+
+        <!-- Current Device Info Display -->
+        <div id="device-info" class="hidden bg-slate-100 dark:bg-black/20 rounded-xl p-4 text-left border border-slate-200 dark:border-white/10">
+            <div class="flex items-center gap-2 mb-1 opacity-60 text-slate-500 dark:text-white">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                <span class="text-xs font-bold uppercase tracking-wider">当前设备</span>
+            </div>
+            <div id="current-device-name" class="text-lg font-semibold truncate mb-3 text-indigo-600 dark:text-teal-300">
+                检测中...
+            </div>
+            <div class="text-xs text-slate-500 dark:text-white/50 flex items-start gap-1.5 bg-white dark:bg-white/5 p-2 rounded-lg border border-slate-200 dark:border-transparent">
+                <svg class="w-4 h-4 shrink-0 mt-0.5 text-yellow-500 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <p>如需切换麦克风，请点击浏览器地址栏左侧图标或在系统设置中更改，然后刷新页面。</p>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="space-y-4">
+            <button id="toggle-btn" class="w-full px-5 py-3 text-lg font-semibold bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-white/20 dark:border-white/20 border-transparent border rounded-xl dark:hover:bg-white/30 active:scale-95 transition-all duration-150 shadow-md shadow-indigo-200 dark:shadow-none">
+                开始测试
+            </button>
+            <label for="monitor-checkbox" class="flex items-center justify-center gap-3 cursor-pointer select-none text-slate-600 dark:text-white">
+                <div class="relative">
+                    <input type="checkbox" id="monitor-checkbox" class="sr-only peer">
+                    <!-- Track: Slate-200 Light, White/20 Dark -->
+                    <div class="w-11 h-6 bg-slate-200 dark:bg-white/20 rounded-full peer transition-colors peer-checked:bg-indigo-500 dark:peer-checked:bg-teal-400"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-full shadow-sm"></div>
+                </div>
+                <span class="text-base">实时监听 (建议使用耳机)</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- First Visit Modal -->
+    <div id="welcome-modal" class="modal-backdrop">
+        <div class="modal-content w-full max-w-sm p-6 rounded-2xl glass bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white shadow-2xl">
+            <div class="flex justify-center mb-4 text-indigo-500 dark:text-teal-400">
+                <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h2 class="text-xl font-bold text-center mb-2">使用提示</h2>
+            <p class="text-sm text-slate-600 dark:text-gray-300 text-center leading-relaxed mb-6">
+                本工具将使用您浏览器的<strong>默认麦克风</strong>。<br><br>
+                如果要测试其他设备，请在<strong>浏览器设置</strong>或<strong>操作系统声音设置</strong>中切换默认输入设备。
+            </p>
+            <button id="close-modal-btn" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-teal-500 dark:hover:bg-teal-600 text-white rounded-xl font-semibold transition-colors">
+                我知道了
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const applyTheme = () => { if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark'); };
+        applyTheme(); window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+        const toggleBtn = document.getElementById('toggle-btn');
+        const statusEl = document.getElementById('status');
+        const visualizer = document.getElementById('visualizer');
+        const monitorCheckbox = document.getElementById('monitor-checkbox');
+        const deviceInfoEl = document.getElementById('device-info');
+        const currentDeviceNameEl = document.getElementById('current-device-name');
+        const canvasCtx = visualizer.getContext('2d');
+        const welcomeModal = document.getElementById('welcome-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+
+        let isTesting = false;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let stream = null;
+        let animationFrameId;
+
+        function setStatus(message, isError = false) {
+            statusEl.textContent = message;
+            // Text color logic
+            if (isError) {
+                statusEl.className = "text-lg h-8 transition-all duration-300 text-red-500 dark:text-red-400";
+            } else {
+                statusEl.className = "text-lg h-8 transition-all duration-300 text-slate-500 dark:text-white/80";
+            }
+        }
+
+        const checkFirstVisit = () => {
+            const hasVisited = localStorage.getItem('mic_tester_visited_v2');
+            if (!hasVisited) welcomeModal.classList.add('visible');
+        };
+        closeModalBtn.onclick = () => {
+            welcomeModal.classList.remove('visible');
+            localStorage.setItem('mic_tester_visited_v2', 'true');
+        };
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+            }
+            if (audioContext.state === 'suspended') audioContext.resume();
+        }
+
+        async function startTest() {
+            try {
+                initAudioContext();
+                if (stream) stream.getTracks().forEach(track => track.stop());
+                if (microphone) microphone.disconnect();
+                setStatus("正在请求权限...");
+                const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const audioTrack = stream.getAudioTracks()[0];
+                const label = audioTrack.label || "默认麦克风 (未命名)";
+                currentDeviceNameEl.textContent = label;
+                deviceInfoEl.classList.remove('hidden');
+
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                updateMonitorState();
+                setStatus("正在监听...");
+                toggleBtn.textContent = '停止测试';
+                // Update Button Style for Stop state (Red/Gray) if desired, but keeping uniform for now
+                isTesting = true;
+                if (!animationFrameId) startVisualization();
+            } catch (err) {
+                console.error("Start failed:", err);
+                if (err.name === 'NotAllowedError') setStatus("权限被拒绝，请允许访问麦克风。", true);
+                else if (err.name === 'NotFoundError') setStatus("未找到麦克风设备。", true);
+                else setStatus(`错误：${err.message}`, true);
+                isTesting = false;
+                toggleBtn.textContent = '开始测试';
+            }
+        }
+
+        function stopTest() {
+            if (stream) stream.getTracks().forEach(track => track.stop());
+            if (microphone) microphone.disconnect();
+            if (audioContext) audioContext.suspend();
+            if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+            canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
+            setStatus('测试已停止');
+            toggleBtn.textContent = '开始测试';
+            isTesting = false;
+        }
+
+        function updateMonitorState() {
+            if (!isTesting || !microphone || !audioContext) return;
+            try { microphone.disconnect(audioContext.destination); } catch(e) {} 
+            microphone.connect(analyser); 
+            if (monitorCheckbox.checked) microphone.connect(audioContext.destination);
+        }
+
+        function startVisualization() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            const draw = () => {
+                if (!isTesting) return;
+                animationFrameId = requestAnimationFrame(draw);
+                analyser.getByteTimeDomainData(dataArray);
+                
+                canvasCtx.clearRect(0, 0, visualizer.width, visualizer.height);
+                
+                // Light Mode: Light Gray background fill manually
+                if (!document.documentElement.classList.contains('dark')) {
+                     canvasCtx.fillStyle = 'rgba(241, 245, 249, 0.5)'; // slate-100/50
+                     canvasCtx.fillRect(0, 0, visualizer.width, visualizer.height);
+                     canvasCtx.strokeStyle = '#4f46e5'; // Indigo-600
+                } else {
+                     canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                     canvasCtx.fillRect(0, 0, visualizer.width, visualizer.height);
+                     canvasCtx.strokeStyle = '#2dd4bf'; // Teal-400
+                }
+                
+                canvasCtx.lineWidth = 2;
+                canvasCtx.beginPath();
+                const sliceWidth = visualizer.width * 1.0 / bufferLength;
+                let x = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * visualizer.height / 2;
+                    if (i === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+                    x += sliceWidth;
+                }
+                canvasCtx.lineTo(visualizer.width, visualizer.height / 2);
+                canvasCtx.stroke();
+            };
+            draw();
+        }
+
+        toggleBtn.onclick = () => isTesting ? stopTest() : startTest();
+        monitorCheckbox.onchange = updateMonitorState;
+        const resize = () => { visualizer.width = visualizer.parentElement.clientWidth - 48; visualizer.height = 150; };
+        window.onresize = resize;
+        resize();
+        checkFirstVisit();
+    </script>
+</body>
+</html>

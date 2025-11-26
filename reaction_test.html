@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鼠标反应力测试</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+        }
+        #test-area {
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+            user-select: none; /* 防止文字被选中 */
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-blue-400 to-emerald-400 dark:from-slate-900 dark:to-emerald-800 transition-colors duration-300">
+
+    <!-- Main application container -->
+    <div id="test-area" class="w-full h-full md:h-auto md:w-full max-w-2xl aspect-video rounded-3xl p-6 glass bg-white/40 dark:bg-black/40 border border-white/20 dark:border-white/10 text-white shadow-2xl flex flex-col items-center justify-center text-center">
+        
+        <div id="content" class="fade-in">
+             <h1 id="main-text" class="text-5xl md:text-7xl font-bold tracking-wider">点击开始</h1>
+             <p id="sub-text" class="text-xl md:text-2xl opacity-80 mt-4">测试你的反应速度</p>
+        </div>
+       
+        <div id="best-score" class="absolute bottom-6 text-lg opacity-60">
+            最佳成绩: -- ms
+        </div>
+
+    </div>
+
+    <script>
+        // --- Dark Mode Auto-Switcher ---
+        const applyTheme = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+        applyTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+        // --- DOM Element Selection ---
+        const testArea = document.getElementById('test-area');
+        const content = document.getElementById('content');
+        const mainText = document.getElementById('main-text');
+        const subText = document.getElementById('sub-text');
+        const bestScoreEl = document.getElementById('best-score');
+
+        // --- State Management ---
+        let state = 'initial'; // initial, waiting, reacting, result, tooSoon
+        let timerId = null;
+        let startTime = 0;
+        let bestScore = localStorage.getItem('reactionBestScore') || null;
+
+        const stateClasses = {
+            initial: ['bg-white/40', 'dark:bg-black/40'],
+            waiting: ['bg-red-500/80', 'dark:bg-red-700/80'],
+            reacting: ['bg-emerald-500/80', 'dark:bg-emerald-600/80'],
+            result: ['bg-blue-500/80', 'dark:bg-blue-700/80'],
+            tooSoon: ['bg-yellow-500/80', 'dark:bg-yellow-600/80']
+        };
+
+        const allStateClasses = Object.values(stateClasses).flat();
+
+        // --- UI Update Functions ---
+        const updateBestScoreUI = () => {
+            bestScoreEl.textContent = bestScore ? `最佳成绩: ${bestScore} ms` : '最佳成绩: -- ms';
+        };
+        
+        const updateUI = (main, sub, newClasses) => {
+            content.classList.remove('fade-in');
+            void content.offsetWidth; // Trigger reflow to restart animation
+            content.classList.add('fade-in');
+
+            mainText.textContent = main;
+            subText.textContent = sub;
+            
+            // Remove all possible state classes to ensure a clean slate
+            testArea.classList.remove(...allStateClasses);
+
+            // Add the new classes for the current state
+            testArea.classList.add(...newClasses);
+        };
+
+        // --- Game Logic Functions ---
+        const startWait = () => {
+            state = 'waiting';
+            updateUI('准备...', '变绿后立即点击', stateClasses.waiting);
+            const randomDelay = Math.random() * 3000 + 1000; // 1 to 4 seconds
+            timerId = setTimeout(startReact, randomDelay);
+        };
+        
+        const startReact = () => {
+            state = 'reacting';
+            updateUI('点击!', '', stateClasses.reacting);
+            startTime = performance.now();
+        };
+
+        const endTest = () => {
+            const endTime = performance.now();
+            const reactionTime = Math.round(endTime - startTime);
+            state = 'result';
+            
+            if (bestScore === null || reactionTime < bestScore) {
+                bestScore = reactionTime;
+                localStorage.setItem('reactionBestScore', bestScore);
+                updateBestScoreUI();
+            }
+
+            updateUI(`${reactionTime} ms`, '点击任意位置重试', stateClasses.result);
+        };
+
+        const handleTooSoon = () => {
+            clearTimeout(timerId);
+            state = 'tooSoon';
+            updateUI('太快了!', '请在屏幕变绿后再点击', stateClasses.tooSoon);
+        };
+
+        // --- Event Handler ---
+        testArea.addEventListener('click', () => {
+            switch (state) {
+                case 'initial':
+                case 'result':
+                case 'tooSoon':
+                    startWait();
+                    break;
+                case 'waiting':
+                    handleTooSoon();
+                    break;
+                case 'reacting':
+                    endTest();
+                    break;
+            }
+        });
+
+        // --- Initial Setup ---
+        updateBestScoreUI();
+
+    </script>
+</body>
+</html>
+

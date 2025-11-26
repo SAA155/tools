@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web 工具箱 | Nexus Dashboard</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <!-- 引入高级字体 Space Grotesk 用于标题，Inter 用于正文 -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // 自动配置 Tailwind 深色模式
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        /* --- 基础设置 & CSS 变量 --- */
+        :root {
+            --cursor-x: 0px;
+            --cursor-y: 0px;
+            
+            /* Light Mode Colors */
+            --bg-color: #f8fafc;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --blob-1: #e0e7ff; /* Indigo-100 */
+            --blob-2: #ede9fe; /* Violet-100 */
+            --blob-3: #fce7f3; /* Pink-100 */
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --card-border: rgba(226, 232, 240, 0.8);
+            --spotlight-color: rgba(99, 102, 241, 0.15);
+        }
+
+        .dark {
+            /* Dark Mode Colors */
+            --bg-color: #0B1121; 
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --blob-1: #1d4ed8; 
+            --blob-2: #7c3aed; 
+            --blob-3: #0f766e; 
+            --card-bg: rgba(30, 41, 59, 0.4); 
+            --card-border: rgba(255, 255, 255, 0.08);
+            --spotlight-color: rgba(56, 189, 248, 0.25); 
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+        h1, h2, h3, .font-heading {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* --- 极光背景动画 --- */
+        .aurora-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -2;
+            background: radial-gradient(circle at 50% 50%, transparent, var(--bg-color));
+            overflow: hidden;
+        }
+        .aurora-blob {
+            position: absolute;
+            filter: blur(90px);
+            opacity: 0.5;
+            animation: float 12s infinite ease-in-out;
+            transition: background-color 0.5s ease;
+        }
+        .dark .aurora-blob { opacity: 0.35; }
+
+        .blob-1 { top: -10%; left: -10%; width: 60vw; height: 60vw; background: var(--blob-1); animation-delay: 0s; }
+        .blob-2 { bottom: -10%; right: -10%; width: 70vw; height: 70vw; background: var(--blob-2); animation-delay: -3s; }
+        .blob-3 { top: 40%; left: 40%; width: 50vw; height: 50vw; background: var(--blob-3); animation-delay: -6s; opacity: 0.3; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(40px, -60px) scale(1.1); }
+            66% { transform: translate(-30px, 30px) scale(0.9); }
+        }
+
+        /* --- 噪点纹理 --- */
+        .noise-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+        .dark .noise-overlay { opacity: 0.04; }
+
+        /* --- 聚光灯卡片 --- */
+        .spotlight-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(12px);
+            cursor: pointer;
+        }
+        .spotlight-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: inherit;
+            padding: 1.5px;
+            background: radial-gradient(
+                800px circle at var(--mouse-x) var(--mouse-y),
+                var(--spotlight-color),
+                transparent 40%
+            );
+            -webkit-mask: 
+                linear-gradient(#fff 0 0) content-box, 
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .spotlight-card:hover::before { opacity: 1; }
+        .spotlight-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1);
+        }
+        .dark .spotlight-card:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.4);
+        }
+        
+        /* 置顶卡片特效 */
+        .spotlight-card.pinned {
+            border-color: rgba(251, 191, 36, 0.4); /* Amber-400 */
+            background: linear-gradient(to bottom right, rgba(251, 191, 36, 0.05), var(--card-bg));
+        }
+        .dark .spotlight-card.pinned {
+            border-color: rgba(251, 191, 36, 0.3);
+            background: linear-gradient(to bottom right, rgba(251, 191, 36, 0.08), var(--card-bg));
+        }
+
+        /* --- 搜索栏 --- */
+        .search-input {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+        .search-input::placeholder { color: var(--text-secondary); }
+        .search-input:focus {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            outline: none;
+        }
+        .dark .search-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(56, 189, 248, 0.5);
+            box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.1);
+        }
+
+        /* --- 列表入场动画 --- */
+        .card-enter {
+            animation: cardEnter 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        @keyframes cardEnter {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- 分类标签 --- */
+        .filter-btn {
+            transition: all 0.3s;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+        }
+        .filter-btn:hover:not(.active) {
+            background: rgba(0,0,0,0.05);
+            color: var(--text-primary);
+        }
+        .dark .filter-btn:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .filter-btn.active {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.2);
+            color: #4f46e5; 
+            font-weight: 600;
+        }
+        .dark .filter-btn.active {
+            background: rgba(56, 189, 248, 0.15); 
+            border-color: rgba(56, 189, 248, 0.3);
+            color: #38bdf8;
+        }
+
+        /* --- 置顶按钮 --- */
+        .pin-btn {
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .spotlight-card:hover .pin-btn, .pin-btn.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .pin-btn.active svg {
+            fill: #fbbf24;
+            stroke: #fbbf24;
+        }
+        
+        /* --- 底部标签栏 --- */
+        .card-footer-tag {
+            font-size: 0.65rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 背景层 -->
+    <div class="aurora-bg">
+        <div class="aurora-blob blob-1"></div>
+        <div class="aurora-blob blob-2"></div>
+        <div class="aurora-blob blob-3"></div>
+    </div>
+    <div class="noise-overlay"></div>
+
+    <!-- 顶部导航与 Hero 区域 -->
+    <header class="relative z-10 pt-16 pb-12 px-6 md:px-12 max-w-7xl mx-auto w-full">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="px-2 py-1 rounded text-[10px] font-bold tracking-widest bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 uppercase dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/30">v3.2</span>
+                    <span id="clock" class="text-sm font-mono text-slate-500 dark:text-gray-400">00:00:00</span>
+                </div>
+                <h1 class="text-5xl md:text-6xl font-bold mb-4 tracking-tight text-slate-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-r dark:from-white dark:via-slate-200 dark:to-slate-400">
+                    Nexus Tools.
+                </h1>
+                <p class="text-lg text-slate-600 dark:text-gray-400 max-w-xl leading-relaxed">
+                    零依赖，纯粹，高效。<br>
+                    <span class="text-slate-400 dark:text-gray-500 text-sm">Designed for Developers & Power Users.</span>
+                </p>
+            </div>
+
+            <!-- 搜索, 过滤与主题切换 -->
+            <div class="w-full md:w-auto flex flex-col gap-4">
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-slate-400 group-focus-within:text-indigo-500 dark:group-focus-within:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <input type="text" id="search-input" placeholder="搜索工具 (Ctrl + K)" 
+                           class="search-input w-full md:w-80 pl-11 pr-4 py-3 rounded-xl text-sm">
+                </div>
+                <div class="flex flex-wrap gap-2" id="category-filters">
+                    <button class="filter-btn active px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="all">全部</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="媒体">媒体</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="网络">网络</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="开发">开发</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="安全">安全</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="硬件">硬件</button>
+                     <button class="filter-btn px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer" data-filter="效率">效率</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 工具网格 -->
+    <main class="relative z-10 px-6 md:px-12 pb-20 max-w-7xl mx-auto w-full">
+        <div id="tools-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- 卡片将通过 JS 动态插入 -->
+        </div>
+        
+        <div id="no-results" class="hidden text-center py-20">
+            <div class="inline-block p-4 rounded-full bg-slate-200 dark:bg-white/5 mb-4">
+                <svg class="w-8 h-8 text-slate-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <p class="text-slate-500 dark:text-gray-500">未找到相关工具</p>
+        </div>
+    </main>
+
+    <!-- 底部 -->
+    <footer class="mt-auto relative z-10 py-8 text-center text-xs text-slate-400 dark:text-gray-600 border-t border-slate-200 dark:border-white/5">
+        <p>Local-First Web Tools. No ads, no tracking.</p>Copyright © 2019-2025 Redfox </p>
+    </footer>
+
+    <script>
+        // --- 0. 主题切换逻辑 ---
+        const updateTheme = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+        updateTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
+
+        // --- 1. 状态管理 (置顶功能) ---
+        const getPinnedTools = () => {
+            try {
+                return JSON.parse(localStorage.getItem('nexus_pinned_tools') || '[]');
+            } catch (e) { return []; }
+        };
+
+        const setPinnedTools = (list) => {
+            localStorage.setItem('nexus_pinned_tools', JSON.stringify(list));
+        };
+
+        // --- 2. 工具数据 ---
+        const toolsData = [
+            {
+                title: "QR Studio",
+                desc: "全能二维码生成与解析，支持嵌入 Logo。",
+                file: "qr_code_studio.html",
+                icon: "M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm8-2h6v6h-6v-6zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2z",
+                tag: "媒体",
+                hot: true
+            },
+            {
+                title: "IP 查询",
+                desc: "地理位置、运营商、时区及地图可视化。",
+                file: "ip_lookup_pro.html",
+                icon: "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+                tag: "网络",
+                hot: true
+            },
+            {
+                title: "汇率中心",
+                desc: "多货币实时换算与历史走势分析。",
+                file: "currency_converter.html",
+                icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+                tag: "金融",
+                hot: true
+            },
+            {
+                title: "图片压缩",
+                desc: "纯前端压缩，支持 JPG/PNG/WEBP 互转。",
+                file: "image_compressor.html",
+                icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+                tag: "媒体",
+                hot: true
+            },
+            {
+                title: "UUID 生成",
+                desc: "批量生成 v4 UUID，支持格式化定制。",
+                file: "uuid_generator.html",
+                icon: "M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4",
+                tag: "开发"
+            },
+            {
+                title: "反应力测试",
+                desc: "毫秒级精度测试，挑战你的极限。",
+                file: "reaction_test.html",
+                icon: "M13 10V3L4 14h7v7l9-11h-7z",
+                tag: "游戏"
+            },
+            {
+                title: "Markdown 编辑",
+                desc: "双栏实时预览，滚动同步，写作利器。",
+                file: "markdown_editor.html",
+                icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
+                tag: "效率"
+            },
+            {
+                title: "哈希校验",
+                desc: "本地计算 MD5/SHA1/SHA256，支持大文件。",
+                file: "hash_validator.html",
+                icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+                tag: "安全"
+            },
+            {
+                title: "密码生成",
+                desc: "强密码生成，支持随机、助记词及 PIN。",
+                file: "password_generator.html",
+                icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
+                tag: "安全"
+            },
+            {
+                title: "麦克风检测",
+                desc: "音频波形可视化，检测输入电平。",
+                file: "microphone_tester.html",
+                icon: "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z",
+                tag: "硬件"
+            },
+            {
+                title: "键盘测试",
+                desc: "全键位检测，显示 KeyCode 和物理响应。",
+                file: "keyboard_tester.html",
+                icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+                tag: "硬件"
+            },
+            {
+                title: "简约计算器",
+                desc: "毛玻璃风格，支持历史记录。",
+                file: "calculator.html",
+                icon: "M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z",
+                tag: "效率"
+            },
+             {
+                title: "IP 查询 (基础)",
+                desc: "轻量级 IP 查询，无地图组件。",
+                file: "ip_lookup_basic.html",
+                icon: "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+                tag: "网络"
+            },
+            {
+                title: "图片隐写加密",
+                desc: "基于像素混淆的简易图片加密工具。",
+                file: "image_encryptor.html",
+                icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+                tag: "安全"
+            },
+            {
+                title: "幻影坦克",
+                desc: "制作在黑/白背景下显示不同内容的图片。",
+                file: "phantom_tank.html",
+                icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+                tag: "媒体"
+            }
+        ];
+
+        const grid = document.getElementById('tools-grid');
+        const searchInput = document.getElementById('search-input');
+        const filters = document.getElementById('category-filters');
+        const noResults = document.getElementById('no-results');
+
+        // 3. 核心交互逻辑
+        window.openTool = (file) => {
+            window.open(file, '_blank');
+        };
+
+        window.togglePin = (e, file) => {
+            e.stopPropagation();
+            let pinned = getPinnedTools();
+            if (pinned.includes(file)) {
+                pinned = pinned.filter(f => f !== file);
+            } else {
+                pinned.push(file);
+            }
+            setPinnedTools(pinned);
+            const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+            renderCards(activeFilter, searchInput.value);
+        };
+
+        // 4. 渲染函数
+        const renderCards = (filterTag = 'all', searchText = '') => {
+            grid.innerHTML = '';
+            const pinned = getPinnedTools();
+
+            let filtered = toolsData.filter(tool => {
+                const matchesTag = filterTag === 'all' || tool.tag === filterTag;
+                const matchesSearch = tool.title.toLowerCase().includes(searchText.toLowerCase()) || 
+                                      tool.desc.toLowerCase().includes(searchText.toLowerCase());
+                return matchesTag && matchesSearch;
+            });
+
+            filtered.sort((a, b) => {
+                const isPinnedA = pinned.includes(a.file);
+                const isPinnedB = pinned.includes(b.file);
+                if (isPinnedA && !isPinnedB) return -1;
+                if (!isPinnedA && isPinnedB) return 1;
+                return 0;
+            });
+
+            if (filtered.length === 0) {
+                noResults.classList.remove('hidden');
+                return;
+            } else {
+                noResults.classList.add('hidden');
+            }
+
+            filtered.forEach((tool, index) => {
+                const isPinned = pinned.includes(tool.file);
+                const card = document.createElement('div'); 
+                
+                // 添加 pinned 类以触发 CSS 中的边框高亮
+                card.className = `spotlight-card group rounded-2xl p-6 card-enter block relative flex flex-col justify-between min-h-[180px] ${isPinned ? 'pinned' : ''}`;
+                card.style.animationDelay = `${index * 50}ms`;
+                card.onclick = () => openTool(tool.file);
+                
+                const colors = {
+                    "网络": "text-blue-500 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/10",
+                    "金融": "text-emerald-500 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10",
+                    "媒体": "text-sky-500 dark:text-sky-400 bg-sky-100 dark:bg-sky-500/10",
+                    "开发": "text-violet-500 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/10",
+                    "游戏": "text-pink-500 dark:text-pink-400 bg-pink-100 dark:bg-pink-500/10",
+                    "效率": "text-orange-500 dark:text-orange-400 bg-orange-100 dark:bg-orange-500/10",
+                    "安全": "text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-500/10",
+                    "硬件": "text-cyan-500 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/10"
+                };
+                const themeClass = colors[tool.tag] || "text-slate-500 dark:text-gray-400 bg-slate-100 dark:bg-gray-500/10";
+
+                card.innerHTML = `
+                    <!-- 置顶按钮 (绝对定位在右上角) -->
+                    <button class="pin-btn ${isPinned ? 'active' : ''} absolute top-4 right-4 z-20 p-2 rounded-full hover:bg-slate-200 dark:hover:bg-white/10 transition-colors" 
+                            onclick="togglePin(event, '${tool.file}')" 
+                            title="${isPinned ? '取消置顶' : '置顶工具'}">
+                        <svg class="w-4 h-4 text-slate-400 dark:text-gray-500 transition-colors" fill="${isPinned ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                    </button>
+
+                    <div>
+                        <div class="mb-4">
+                            <div class="w-12 h-12 rounded-xl ${themeClass} flex items-center justify-center transition-transform group-hover:scale-110 duration-300">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${tool.icon}" />
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-cyan-400 transition-colors flex items-center gap-2">
+                            ${tool.title}
+                            ${isPinned ? '<span class="text-xs text-amber-400">★</span>' : ''}
+                        </h3>
+                        <p class="text-sm text-slate-500 dark:text-gray-400 leading-relaxed line-clamp-2 mb-4">
+                            ${tool.desc}
+                        </p>
+                    </div>
+
+                    <!-- 底部栏 (下沉标签区) -->
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5 mt-auto">
+                        <div class="flex items-center gap-2">
+                            <span class="card-footer-tag px-2 py-1 rounded-md bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-gray-400">
+                                ${tool.tag}
+                            </span>
+                            ${tool.hot ? `<span class="card-footer-tag px-2 py-1 rounded-md bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400">HOT</span>` : ''}
+                        </div>
+                        
+                        <div class="text-slate-300 dark:text-gray-600 group-hover:text-indigo-500 dark:group-hover:text-cyan-400 transition-colors transform group-hover:translate-x-1">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                            </svg>
+                        </div>
+                    </div>
+                `;
+                
+                card.onmousemove = e => {
+                    const rect = card.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    card.style.setProperty("--mouse-x", `${x}px`);
+                    card.style.setProperty("--mouse-y", `${y}px`);
+                };
+
+                grid.appendChild(card);
+            });
+        };
+
+        // 5. 事件监听
+        searchInput.addEventListener('input', (e) => {
+            const activeBtn = document.querySelector('.filter-btn.active');
+            renderCards(activeBtn.dataset.filter, e.target.value);
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                searchInput.focus();
+            }
+        });
+
+        filters.addEventListener('click', (e) => {
+            if (e.target.classList.contains('filter-btn')) {
+                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                renderCards(e.target.dataset.filter, searchInput.value);
+            }
+        });
+
+        const updateClock = () => {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+        };
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // 6. 初始化
+        renderCards();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>二维码工具</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script>
+        // 配置 Tailwind 深色模式
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <style>
+        /* --- 基础与布局 --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none; 
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        h1, h2, .font-heading { font-family: 'Space Grotesk', sans-serif; }
+        
+        .glass {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        
+        /* 浅色模式面板 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+        }
+        /* 深色模式面板 */
+        .dark .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
+        /* --- 滚动条美化 (双模式适配) --- */
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        
+        /* Light Mode Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+        
+        /* Dark Mode Scrollbar */
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+        /* --- 动画与状态 --- */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .tab-content.active { display: flex; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* 选中状态的光晕效果 */
+        .ecc-btn.active {
+            border-color: rgba(79, 70, 229, 0.5); /* Indigo-600 */
+            color: #4338ca; /* Indigo-700 */
+            background-color: rgba(224, 231, 255, 0.5);
+        }
+        .dark .ecc-btn.active {
+            border-color: rgba(99, 102, 241, 0.5); /* Indigo-500 */
+            color: #a5b4fc; /* Indigo-300 */
+            background-color: rgba(79, 70, 229, 0.2);
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+        }
+
+        /* --- 背景纹理 (双模式) --- */
+        #canvas-container {
+            /* Light Mode Pattern */
+            background-image: radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+            background-position: center;
+        }
+        .dark #canvas-container {
+            /* Dark Mode Pattern */
+            background-image: radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="h-screen w-full bg-gray-50 dark:bg-[#0f172a] text-slate-800 dark:text-white flex items-center justify-center p-0 md:p-6 lg:p-10 overflow-hidden">
+
+    <!-- 主应用容器 -->
+    <div class="w-full h-full max-w-7xl glass glass-panel md:rounded-3xl overflow-hidden flex flex-col md:flex-row relative transition-all duration-300">
+        
+        <!-- 左侧控制栏 (Sidebar) -->
+        <div class="w-full md:w-[400px] bg-white/60 dark:bg-[#131b2e]/80 border-b md:border-b-0 md:border-r border-gray-200 dark:border-white/10 flex flex-col z-20 flex-shrink-0 h-[60vh] md:h-full transition-colors duration-300">
+            
+            <!-- 标题区 -->
+            <div class="p-5 md:p-6 border-b border-gray-200 dark:border-white/5 flex-shrink-0 flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-blue-500 dark:from-teal-400 dark:to-indigo-500 tracking-tight">二维码工具</h1>
+                    <p class="text-[10px] md:text-xs text-slate-500 dark:text-gray-500 mt-0.5 font-medium tracking-wide">轻松创建，解析，自定义您的二维码。</p>
+                </div>
+            </div>
+
+            <!-- 选项卡 -->
+            <div class="px-5 md:px-6 pt-2 pb-4 flex gap-3 flex-shrink-0">
+                <button onclick="switchTab('generate')" id="tab-generate" class="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all transform active:scale-95">生成</button>
+                <button onclick="switchTab('scan')" id="tab-scan" class="flex-1 py-2.5 text-sm font-semibold rounded-xl text-slate-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent transition-all transform active:scale-95">解析</button>
+            </div>
+
+            <!-- 生成控制面板 -->
+            <div id="controls-generate" class="p-5 md:p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 tab-content active flex-col block">
+                <!-- 内容输入 -->
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-indigo-300/80 uppercase tracking-widest">二维码内容</label>
+                    <textarea id="qr-text" rows="3" class="w-full bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl p-3 text-sm text-slate-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none" placeholder="输入 https://... 或任意文本"></textarea>
+                </div>
+
+                <!-- 容错率 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-baseline">
+                        <label class="text-[10px] font-bold text-slate-500 dark:text-indigo-300/80 uppercase tracking-widest">容错等级</label>
+                        <span class="text-[10px] text-slate-400 dark:text-gray-500 font-mono" id="ecc-label">High (30%)</span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button class="ecc-btn py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent text-xs font-medium text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 transition-all" data-level="L">L 7%</button>
+                        <button class="ecc-btn py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent text-xs font-medium text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 transition-all" data-level="M">M 15%</button>
+                        <button class="ecc-btn py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent text-xs font-medium text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 transition-all" data-level="Q">Q 25%</button>
+                        <button class="ecc-btn active py-2 rounded-lg border text-xs font-bold transition-all" data-level="H">H 30%</button>
+                    </div>
+                </div>
+
+                <!-- 颜色设置 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-bold text-slate-500 dark:text-indigo-300/80 uppercase tracking-widest">前景色</label>
+                        <label class="flex items-center gap-3 bg-white dark:bg-white/5 p-2.5 rounded-xl border border-gray-200 dark:border-white/10 cursor-pointer hover:border-indigo-300 dark:hover:bg-white/10 transition">
+                            <input type="color" id="color-dark" value="#000000" class="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-none p-0">
+                            <span class="text-xs text-slate-600 dark:text-gray-300 font-mono uppercase" id="color-dark-val">#000000</span>
+                        </label>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-[10px] font-bold text-slate-500 dark:text-indigo-300/80 uppercase tracking-widest">背景色</label>
+                        <label class="flex items-center gap-3 bg-white dark:bg-white/5 p-2.5 rounded-xl border border-gray-200 dark:border-white/10 cursor-pointer hover:border-indigo-300 dark:hover:bg-white/10 transition">
+                            <input type="color" id="color-light" value="#ffffff" class="w-8 h-8 rounded-lg bg-transparent cursor-pointer border-none p-0">
+                            <span class="text-xs text-slate-600 dark:text-gray-300 font-mono uppercase" id="color-light-val">#ffffff</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Logo 设置 -->
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <label class="text-[10px] font-bold text-slate-500 dark:text-indigo-300/80 uppercase tracking-widest">嵌入 Logo</label>
+                        <button id="remove-logo" class="hidden text-[10px] text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 flex items-center gap-1 transition">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            清除
+                        </button>
+                    </div>
+                    <div class="relative group">
+                        <input type="file" id="logo-input" accept="image/*" class="hidden">
+                        <label for="logo-input" class="flex items-center justify-center w-full h-14 border border-dashed border-gray-300 dark:border-white/20 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 hover:border-indigo-400 transition-all">
+                            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400 group-hover:text-slate-700 dark:group-hover:text-gray-200 transition-colors">
+                                <svg class="w-4 h-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                <span id="logo-name" class="truncate max-w-[180px]">点击选择图片文件...</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- 下载按钮 -->
+                <div class="pt-2 pb-6">
+                    <button id="download-btn" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 dark:hover:from-indigo-500 dark:hover:to-blue-500 rounded-xl font-bold text-sm shadow-lg shadow-indigo-500/30 dark:shadow-indigo-900/40 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        保存二维码
+                    </button>
+                </div>
+            </div>
+
+            <!-- 解析控制面板 -->
+            <div id="controls-scan" class="p-5 md:p-6 space-y-6 flex-1 tab-content flex-col hidden overflow-hidden">
+                <!-- 上传区域 -->
+                <div id="drop-zone" class="w-full min-h-[180px] h-48 flex-shrink-0 border-2 border-dashed border-gray-300 dark:border-white/20 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 hover:border-teal-500 dark:hover:border-teal-400/50 transition-all relative overflow-hidden group">
+                    <input type="file" id="scan-input" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                    <div class="text-center pointer-events-none transition-transform group-hover:scale-105 duration-300">
+                        <div class="w-12 h-12 bg-teal-100 dark:bg-teal-500/20 rounded-full flex items-center justify-center mx-auto mb-3 text-teal-600 dark:text-teal-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </div>
+                        <p class="text-sm font-bold text-slate-600 dark:text-gray-300">点击上传二维码</p>
+                        <p class="text-[10px] text-slate-400 dark:text-gray-500 mt-1">支持彩色/反色二维码</p>
+                    </div>
+                </div>
+                
+                <!-- 结果区域 -->
+                <div id="scan-result-area" class="hidden flex-1 flex flex-col min-h-0 animate-fade-in">
+                    <label class="text-[10px] font-bold text-teal-600 dark:text-teal-300/80 uppercase tracking-widest mb-2 flex-shrink-0">解析结果</label>
+                    
+                    <!-- 结果容器 -->
+                    <div class="bg-white dark:bg-black/30 rounded-xl border border-teal-200 dark:border-teal-500/30 relative group flex-1 min-h-0 flex flex-col shadow-sm">
+                        <div class="overflow-y-auto custom-scrollbar p-4 flex-1">
+                            <p id="scan-result-text" class="text-sm text-slate-700 dark:text-gray-200 break-all font-mono leading-relaxed select-all"></p>
+                        </div>
+                        
+                        <!-- 复制按钮 -->
+                        <button onclick="copyResult()" class="absolute top-2 right-2 p-1.5 bg-gray-100 dark:bg-white/10 rounded-lg text-slate-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-white hover:bg-indigo-50 dark:hover:bg-white/20 transition opacity-0 group-hover:opacity-100 backdrop-blur-md z-10">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <p id="scan-error" class="text-xs text-red-500 dark:text-red-400 hidden mt-2 flex items-center gap-1 flex-shrink-0">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        无法识别，请确保图片清晰。
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧预览区 (Preview) -->
+        <div class="flex-1 bg-gray-100 dark:bg-[#0b1121] relative flex flex-col items-center justify-center p-8 md:p-12 overflow-hidden transition-colors duration-300" id="canvas-container">
+            
+            <!-- 装饰背景 -->
+            <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white via-gray-100 to-gray-100 dark:from-indigo-900/20 dark:via-[#0b1121] dark:to-[#0b1121] opacity-80"></div>
+
+            <!-- 生成预览 -->
+            <div id="preview-generate" class="tab-content active w-full h-full flex flex-col items-center justify-center z-10">
+                <div class="relative group transition-all duration-500 transform hover:scale-[1.02]">
+                    <!-- 二维码画布 -->
+                    <canvas id="qrcode-canvas" class="rounded-xl shadow-2xl shadow-gray-400/50 dark:shadow-black/80 border-4 border-white dark:border-white/10"></canvas>
+                    
+                    <!-- 尺寸提示 -->
+                    <div class="absolute -bottom-10 left-0 w-full text-center">
+                        <span class="px-3 py-1 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-[10px] text-slate-400 dark:text-gray-500 font-mono shadow-sm">
+                            500 x 500 px
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 扫描预览 -->
+            <div id="preview-scan" class="tab-content hidden w-full h-full flex flex-col items-center justify-center z-10">
+                <img id="scan-preview-img" class="max-w-full max-h-[60vh] rounded-xl shadow-2xl border border-white dark:border-white/10 object-contain hidden">
+                <div id="scan-placeholder" class="text-slate-400 dark:text-gray-600 text-center flex flex-col items-center">
+                    <div class="w-20 h-20 rounded-full bg-white dark:bg-white/5 flex items-center justify-center mb-4 animate-pulse shadow-sm dark:shadow-none">
+                        <svg class="w-8 h-8 text-slate-300 dark:text-white dark:opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path></svg>
+                    </div>
+                    <span class="text-sm opacity-70">等待图片上传...</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Theme Manager (Auto Switch) ---
+        const updateTheme = () => {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+        
+        // Initial Check
+        updateTheme();
+        
+        // Listen for system changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateTheme);
+
+        // --- State & DOM Elements ---
+        const state = {
+            text: "https://example.com",
+            ecc: "H",
+            darkColor: "#000000",
+            lightColor: "#ffffff",
+            logo: null
+        };
+
+        const qrText = document.getElementById('qr-text');
+        const eccBtns = document.querySelectorAll('.ecc-btn');
+        const colorDark = document.getElementById('color-dark');
+        const colorLight = document.getElementById('color-light');
+        const logoInput = document.getElementById('logo-input');
+        const canvas = document.getElementById('qrcode-canvas');
+        
+        // --- 1. Generator Logic ---
+        const generateQR = async () => {
+            if (!state.text) return;
+            const size = 1000; // High Res
+            
+            try {
+                await QRCode.toCanvas(canvas, state.text, {
+                    width: size,
+                    margin: 2,
+                    color: { dark: state.darkColor, light: state.lightColor },
+                    errorCorrectionLevel: state.ecc
+                });
+
+                if (state.logo) {
+                    const ctx = canvas.getContext('2d');
+                    const logoSize = size * 0.24; 
+                    const logoPos = (size - logoSize) / 2;
+                    ctx.drawImage(state.logo, logoPos, logoPos, logoSize, logoSize);
+                }
+                
+                canvas.style.width = '100%';
+                canvas.style.height = 'auto';
+                canvas.style.maxWidth = '320px'; 
+
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        // --- Event Listeners ---
+        qrText.value = state.text;
+        qrText.addEventListener('input', (e) => { state.text = e.target.value; generateQR(); });
+
+        eccBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Reset classes for both modes
+                eccBtns.forEach(b => {
+                    b.className = "ecc-btn py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-transparent text-xs font-medium text-slate-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/10 transition-all";
+                });
+                // Active state classes
+                btn.className = "ecc-btn active py-2 rounded-lg border text-xs font-bold transition-all";
+                state.ecc = btn.dataset.level;
+                generateQR();
+            });
+        });
+
+        const updateColor = (key, val) => {
+            state[key] = val;
+            document.getElementById(`${key === 'darkColor' ? 'color-dark' : 'color-light'}-val`).textContent = val;
+        };
+        
+        colorDark.addEventListener('input', (e) => updateColor('darkColor', e.target.value));
+        colorLight.addEventListener('input', (e) => updateColor('lightColor', e.target.value));
+        colorDark.addEventListener('change', generateQR);
+        colorLight.addEventListener('change', generateQR);
+
+        logoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.logo = img;
+                    document.getElementById('logo-name').textContent = file.name;
+                    document.getElementById('remove-logo').classList.remove('hidden');
+                    generateQR();
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('remove-logo').addEventListener('click', (e) => {
+            e.preventDefault();
+            state.logo = null;
+            logoInput.value = '';
+            document.getElementById('logo-name').textContent = "点击选择图片文件...";
+            document.getElementById('remove-logo').classList.add('hidden');
+            generateQR();
+        });
+
+        document.getElementById('download-btn').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = `qr-studio-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // --- 2. Scanner Logic ---
+        const scanInput = document.getElementById('scan-input');
+        const scanPreview = document.getElementById('scan-preview-img');
+        const scanPlaceholder = document.getElementById('scan-placeholder');
+        const scanResultArea = document.getElementById('scan-result-area');
+        const scanResultText = document.getElementById('scan-result-text');
+        const scanError = document.getElementById('scan-error');
+
+        const handleScan = (file) => {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                scanPreview.src = e.target.result;
+                scanPreview.classList.remove('hidden');
+                scanPlaceholder.classList.add('hidden');
+
+                const img = new Image();
+                img.onload = () => {
+                    const tempCanvas = document.createElement('canvas');
+                    const ctx = tempCanvas.getContext('2d');
+                    tempCanvas.width = img.width;
+                    tempCanvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    const imageData = ctx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                    
+                    // Attempt 1: Standard
+                    let code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "attemptBoth",
+                    });
+
+                    // Attempt 2: Binarization
+                    if (!code) {
+                        const data = imageData.data;
+                        for (let i = 0; i < data.length; i += 4) {
+                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            const color = avg < 128 ? 0 : 255;
+                            data[i] = color;     
+                            data[i + 1] = color; 
+                            data[i + 2] = color; 
+                        }
+                        code = jsQR(data, imageData.width, imageData.height, {
+                            inversionAttempts: "attemptBoth",
+                        });
+                    }
+
+                    scanResultArea.classList.remove('hidden');
+                    scanResultArea.style.display = 'flex'; 
+                    
+                    if (code) {
+                        scanResultText.textContent = code.data;
+                        scanResultText.classList.remove('hidden');
+                        scanError.classList.add('hidden');
+                    } else {
+                        scanResultText.classList.add('hidden');
+                        scanError.classList.remove('hidden');
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        scanInput.addEventListener('change', (e) => handleScan(e.target.files[0]));
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-teal-500', 'bg-teal-50', 'dark:bg-white/5'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-teal-500', 'bg-teal-50', 'dark:bg-white/5'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-teal-500', 'bg-teal-50', 'dark:bg-white/5');
+            handleScan(e.dataTransfer.files[0]);
+        });
+
+        window.copyResult = () => {
+            navigator.clipboard.writeText(scanResultText.textContent);
+            const btn = document.querySelector('#scan-result-area button');
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+            setTimeout(() => btn.innerHTML = originalIcon, 1000);
+        };
+
+        // --- Tab Switcher ---
+        window.switchTab = (tab) => {
+            const genTab = document.getElementById('tab-generate');
+            const scanTab = document.getElementById('tab-scan');
+            const genControls = document.getElementById('controls-generate');
+            const scanControls = document.getElementById('controls-scan');
+            const genPreview = document.getElementById('preview-generate');
+            const scanPreview = document.getElementById('preview-scan');
+
+            if (tab === 'generate') {
+                genTab.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all transform active:scale-95";
+                scanTab.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl text-slate-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent transition-all transform active:scale-95";
+                genControls.classList.add('active', 'flex'); genControls.classList.remove('hidden');
+                scanControls.classList.remove('active', 'flex'); scanControls.classList.add('hidden');
+                genPreview.classList.add('active', 'flex'); genPreview.classList.remove('hidden');
+                scanPreview.classList.remove('active', 'flex'); scanPreview.classList.add('hidden');
+            } else {
+                scanTab.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl bg-teal-600 text-white shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all transform active:scale-95";
+                genTab.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl text-slate-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent transition-all transform active:scale-95";
+                scanControls.classList.add('active', 'flex'); scanControls.classList.remove('hidden');
+                genControls.classList.remove('active', 'flex'); genControls.classList.add('hidden');
+                scanPreview.classList.add('active', 'flex'); scanPreview.classList.remove('hidden');
+                genPreview.classList.remove('active', 'flex'); genPreview.classList.add('hidden');
+            }
+        };
+
+        generateQR();
+    </script>
+</body>
+</html>

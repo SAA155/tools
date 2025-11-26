@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UUID 生成器</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+        }
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.1); /* Light mode scrollbar */
+            border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.3); /* Dark mode scrollbar */
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Custom slider styles */
+        input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
+        
+        /* Track */
+        input[type="range"]::-webkit-slider-runnable-track { 
+            height: 8px; 
+            background: rgba(0, 0, 0, 0.1); /* Darker track for light mode */
+            border-radius: 4px; 
+        }
+        .dark input[type="range"]::-webkit-slider-runnable-track { 
+            background: rgba(255, 255, 255, 0.2); 
+        }
+        
+        /* Thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; margin-top: -6px;
+            width: 20px; height: 20px; 
+            background: #ffffff;
+            border-radius: 50%; cursor: pointer; 
+            border: 2px solid rgba(0, 0, 0, 0.1); /* Darker border for light mode */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .dark input[type="range"]::-webkit-slider-thumb {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+        /* Animations */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+        /* Bouncy Toggle Switch */
+        .peer:checked ~ .bouncy-ball { transform: translateX(100%) scale(1); }
+        .peer:active ~ .bouncy-ball { transform: translateX(50%) scale(1.2); }
+        .bouncy-ball { transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+        textarea { resize: none; }
+    </style>
+</head>
+<!-- 
+    Updated Body Gradient:
+    Light Mode: Very subtle gray/slate gradient (from-slate-50 to-gray-100) 
+    Dark Mode: Retains the vibrant purple/fuchsia gradient
+-->
+<body class="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-slate-50 to-gray-200 dark:from-slate-900 dark:to-fuchsia-900 transition-colors duration-300 text-slate-800 dark:text-white">
+
+    <!-- Main Container 
+         Light Mode: High opacity white bg (bg-white/80), Dark text (text-slate-800), visible border
+         Dark Mode: Low opacity black bg (bg-black/40), White text
+    -->
+    <div class="w-full max-w-2xl rounded-3xl p-6 md:p-8 glass bg-white/80 dark:bg-black/40 border border-white/60 dark:border-white/10 shadow-2xl space-y-6 pop-in">
+
+        <div class="flex justify-between items-center">
+            <h1 class="text-3xl font-bold tracking-wider text-slate-900 dark:text-white">UUID 生成器</h1>
+            <!-- Tag: Darker text/bg in light mode -->
+            <div class="bg-slate-200/50 dark:bg-white/20 px-3 py-1 rounded-lg text-sm font-medium text-slate-600 dark:text-white">v4</div>
+        </div>
+
+        <!-- Settings Area -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/50 dark:bg-white/5 rounded-2xl p-5 border border-white/50 dark:border-transparent">
+            
+            <!-- Quantity Slider -->
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <label class="font-semibold opacity-90">生成数量</label>
+                    <span id="count-value" class="text-xl font-bold text-indigo-600 dark:text-white">1</span>
+                </div>
+                <input type="range" id="count-slider" min="1" max="50" value="1" class="w-full">
+            </div>
+
+            <!-- Toggles -->
+            <div class="flex flex-col justify-center space-y-3">
+                <!-- Uppercase Toggle -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="font-semibold opacity-90 group-hover:opacity-100 transition">大写字母 (ABCD)</span>
+                    <div class="relative">
+                        <input type="checkbox" id="uppercase-check" class="sr-only peer">
+                        <!-- Toggle Track: Darker gray in light mode -->
+                        <div class="w-11 h-6 bg-slate-300 dark:bg-white/20 rounded-full peer transition-colors peer-checked:bg-indigo-500 dark:peer-checked:bg-fuchsia-500"></div>
+                        <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full bouncy-ball shadow-sm"></div>
+                    </div>
+                </label>
+
+                <!-- Hyphens Toggle -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="font-semibold opacity-90 group-hover:opacity-100 transition">包含连字符 (-)</span>
+                    <div class="relative">
+                        <input type="checkbox" id="hyphens-check" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-slate-300 dark:bg-white/20 rounded-full peer transition-colors peer-checked:bg-indigo-500 dark:peer-checked:bg-fuchsia-500"></div>
+                        <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full bouncy-ball shadow-sm"></div>
+                    </div>
+                </label>
+
+                <!-- Braces Toggle -->
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="font-semibold opacity-90 group-hover:opacity-100 transition">大括号包裹 {}</span>
+                    <div class="relative">
+                        <input type="checkbox" id="braces-check" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-300 dark:bg-white/20 rounded-full peer transition-colors peer-checked:bg-indigo-500 dark:peer-checked:bg-fuchsia-500"></div>
+                        <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full bouncy-ball shadow-sm"></div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- Action Buttons 
+             Light Mode: Indigo background for visibility
+             Dark Mode: White/20 glass background
+        -->
+        <button id="generate-btn" class="w-full py-3.5 text-lg font-bold text-white bg-indigo-500 hover:bg-indigo-600 dark:bg-white/20 dark:hover:bg-white/30 dark:border dark:border-white/20 rounded-xl active:scale-[0.98] transition-all duration-200 shadow-lg shadow-indigo-500/20 dark:shadow-none">
+            生成 UUID
+        </button>
+
+        <!-- Output Area -->
+        <div class="relative group">
+            <div class="absolute top-3 right-3 flex gap-2 z-10">
+                <button id="copy-btn" class="p-2 bg-white/50 hover:bg-white/80 dark:bg-white/10 dark:hover:bg-white/20 rounded-lg backdrop-blur-md transition-all active:scale-90 opacity-0 group-hover:opacity-100 focus:opacity-100 shadow-sm border border-gray-200 dark:border-transparent" title="复制全部">
+                    <svg id="copy-icon" class="w-5 h-5 text-slate-700 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <svg id="check-icon" class="w-5 h-5 hidden text-emerald-500 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Textarea:
+                 Light: White background, Slate text
+                 Dark: Black/40 background, White text
+            -->
+            <textarea id="output-area" readonly class="w-full h-64 p-4 font-mono text-sm md:text-base bg-white border border-gray-200 dark:bg-black/40 dark:border-white/10 text-slate-700 dark:text-white/90 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 dark:focus:ring-white/30 custom-scrollbar transition-all placeholder-slate-400 dark:placeholder-white/30" placeholder="点击生成按钮开始..."></textarea>
+        </div>
+
+        <div class="flex justify-between text-xs opacity-60 px-1 text-slate-500 dark:text-white">
+            <span>Version 4 (Random)</span>
+            <span>Secure Crypto API</span>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Dark Mode Logic ---
+        const applyTheme = () => {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        };
+        applyTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+        // --- DOM Elements ---
+        const countSlider = document.getElementById('count-slider');
+        const countValue = document.getElementById('count-value');
+        const uppercaseCheck = document.getElementById('uppercase-check');
+        const hyphensCheck = document.getElementById('hyphens-check');
+        const bracesCheck = document.getElementById('braces-check');
+        const generateBtn = document.getElementById('generate-btn');
+        const outputArea = document.getElementById('output-area');
+        const copyBtn = document.getElementById('copy-btn');
+        const copyIcon = document.getElementById('copy-icon');
+        const checkIcon = document.getElementById('check-icon');
+
+        // --- UUID Generation Logic ---
+        const generateUUID = () => {
+            const count = parseInt(countSlider.value);
+            const isUppercase = uppercaseCheck.checked;
+            const useHyphens = hyphensCheck.checked;
+            const useBraces = bracesCheck.checked;
+            
+            let result = [];
+
+            for (let i = 0; i < count; i++) {
+                // Native crypto UUID generation
+                let uuid = crypto.randomUUID();
+
+                if (!useHyphens) {
+                    uuid = uuid.replace(/-/g, '');
+                }
+
+                if (isUppercase) {
+                    uuid = uuid.toUpperCase();
+                }
+
+                if (useBraces) {
+                    uuid = `{${uuid}}`;
+                }
+
+                result.push(uuid);
+            }
+
+            outputArea.value = result.join('\n');
+        };
+
+        // --- Copy Logic (with Fallback) ---
+        const copyToClipboard = async () => {
+            if (!outputArea.value) return;
+            
+            const showSuccess = () => {
+                copyIcon.classList.add('hidden');
+                checkIcon.classList.remove('hidden');
+                // Light/Dark friendly success colors
+                copyBtn.classList.add('bg-emerald-100', 'dark:bg-emerald-500/20', 'border-emerald-200', 'dark:border-transparent');
+                
+                setTimeout(() => {
+                    copyIcon.classList.remove('hidden');
+                    checkIcon.classList.add('hidden');
+                    copyBtn.classList.remove('bg-emerald-100', 'dark:bg-emerald-500/20', 'border-emerald-200', 'dark:border-transparent');
+                }, 2000);
+            };
+
+            try {
+                await navigator.clipboard.writeText(outputArea.value);
+                showSuccess();
+            } catch (err) {
+                console.warn('Clipboard API failed, falling back to execCommand');
+                try {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = outputArea.value;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    
+                    textarea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    
+                    if (successful) {
+                        showSuccess();
+                    } else {
+                        throw new Error('execCommand copy failed');
+                    }
+                } catch (fallbackErr) {
+                    console.error('Fallback copy failed:', fallbackErr);
+                    alert('无法自动复制，请手动选择文本复制。');
+                }
+            }
+        };
+
+        // --- Event Listeners ---
+        countSlider.addEventListener('input', (e) => {
+            countValue.textContent = e.target.value;
+        });
+
+        [countSlider, uppercaseCheck, hyphensCheck, bracesCheck].forEach(el => {
+            el.addEventListener('change', () => {
+                if (outputArea.value) generateUUID(); 
+            });
+        });
+
+        generateBtn.addEventListener('click', () => {
+            generateUUID();
+            generateBtn.classList.add('scale-[0.98]');
+            setTimeout(() => generateBtn.classList.remove('scale-[0.98]'), 100);
+        });
+
+        copyBtn.addEventListener('click', copyToClipboard);
+
+        // --- Initial Load ---
+        generateUUID();
+
+    </script>
+</body>
+</html>

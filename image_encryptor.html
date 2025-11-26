@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <!-- 修改自图片混淆 v0.2.2-风云de寒冰-ybzjdsd -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+    <title>Redfox 图片混淆工具</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/logo.png" type="image/png">
+    <style>
+        :root {
+            --bg-color: #111;
+            --card-bg: #222;
+            --text-main: #eee;
+            --text-sub: #888;
+            --primary: #0066cc;
+            --primary-hover: #0052a3;
+            --border: #333;
+        }
+
+        * { box-sizing: border-box; outline: none; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 导航栏 */
+        .nav-bar {
+            width: 100%;
+            background-color: var(--card-bg);
+            height: 60px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 2px solid var(--primary);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 主容器 */
+        .container {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        /* 卡片通用样式 */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        /* 图片预览区 */
+        .preview-area {
+            min-height: 250px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1a1a1a;
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .preview-area:hover {
+            border-color: var(--primary);
+            background-color: #202020;
+        }
+        .preview-placeholder {
+            text-align: center;
+            color: var(--text-sub);
+        }
+        .preview-placeholder span {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        #kimg {
+            max-width: 100%;
+            max-height: 500px;
+            display: none;
+            border-radius: 4px;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            display: grid;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            background-color: #1a1a1a;
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        select:focus, input:focus {
+            border-color: var(--primary);
+        }
+
+        /* 按钮组 */
+        .btn-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+        button.secondary {
+            background-color: #444;
+        }
+        button.secondary:hover {
+            background-color: #555;
+        }
+
+        /* 底部链接 */
+        .footer-links {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-top: 20px;
+        }
+        .footer-links a {
+            color: var(--text-sub);
+            text-decoration: none;
+            margin: 0 5px;
+            transition: color 0.3s;
+        }
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        /* 隐藏元素 */
+        #ipt, #loading, #overlay { display: none; }
+        
+        /* 加载动画 */
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: var(--primary);
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <nav class="nav-bar">
+        <div class="nav-title">
+            <span>图片混淆</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 图片显示区域 -->
+        <div class="card" style="position:relative; padding: 10px;">
+            <div id="imgwrap" class="preview-area" onclick="xuanze()">
+                <div id="sign" class="preview-placeholder">
+                    <span>+</span>
+                    点击上传图片
+                </div>
+                <img id="kimg" src="" alt="Preview">
+                <div id="loading" class="loading-overlay">正在处理中...</div>
+            </div>
+            <div id="picinfo" style="margin-top:10px; text-align:center; font-size:12px; color:#666; height: 20px;"></div>
+            <!-- 隐藏的文件输入 -->
+            <input onchange="ipt()" type="file" id="ipt" accept="image/*">
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="card">
+            <div class="control-panel">
+                <div class="form-group">
+                    <label>加密模式</label>
+                    <select id="slct" onchange="selectonchange()">
+                        <option value="pe2">兼容PicEncrypt: 行+列模式 (推荐)</option>
+                        <option value="pe1">兼容PicEncrypt: 行模式</option>
+                        <option value="b">方块混淆</option>
+                        <option value="c2">行像素混淆</option>
+                        <option value="c">像素混淆</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>安全密钥</label>
+                    <input style="display:none" type="text" id="ikey" placeholder="输入任意字符串作为密码">
+                    <input type="number" id="ikey2" value="0.666" placeholder="输入0-1之间的小数 (例如: 0.123)">
+                </div>
+
+                <div class="btn-group">
+                    <button onclick="jiami()">加密图片</button>
+                    <button onclick="jiemi()">解密图片</button>
+                    <button class="secondary" onclick="huanyuan()">还原原图</button>
+                    <button class="secondary" onclick="baocun()">保存结果</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-links">
+            <p>本工具仅供技术研究，请勿用于非法用途。</p>
+            <a href="Tank.html" target="_blank">幻影坦克生成</a>
+        </div>
+    </div>
+
+    <!-- 脚本部分保持核心逻辑不变，仅适配 UI -->
+    <script>
+        // MD5 库
+        var md5=(function(){function MD5(r){var n=Array(),t,e,o,u,c,f,i,a,h=7,v=12,g=17,l=22,A=5,d=9,p=14,s=20,C=4,S=11,w=16,y=23,b=6,m=10,x=15,E=21;r=Utf8Encode(r),n=ConvertToWordArray(r),c=1732584193,f=4023233417,i=2562383102,a=271733878;for(t=0;t<n.length;t+=16)e=c,o=f,u=i,c=FF(c,f=FF(f,i=FF(i,a=FF(a,c,f,i,n[t+0],h,3614090360),c,f,n[t+1],v,3905402710),a,c,n[t+2],g,606105819),i,a,n[t+3],l,3250441966),c=FF(c,f=FF(f,i=FF(i,a=FF(a,c,f,i,n[t+4],h,4118548399),c,f,n[t+5],v,1200080426),a,c,n[t+6],g,2821942355),i,a,n[t+7],l,1735328473),c=FF(c,f=FF(f,i=FF(i,a=FF(a,c,f,i,n[t+8],h,1770035416),c,f,n[t+9],v,2336552879),a,c,n[t+10],g,4294925233),i,a,n[t+11],l,2304563134),c=FF(c,f=FF(f,i=FF(i,a=FF(a,c,f,i,n[t+12],h,1804603682),c,f,n[t+13],v,4254626195),a,c,n[t+14],g,2792965006),i,a,n[t+15],l,1236535329),c=GG(c,f=GG(f,i=GG(i,a=GG(a,c,f,i,n[t+1],A,4129170786),c,f,n[t+6],d,3225465664),a,c,n[t+11],p,643717713),i,a,n[t+0],s,3921069994),c=GG(c,f=GG(f,i=GG(i,a=GG(a,c,f,i,n[t+5],A,3593408605),c,f,n[t+10],d,38016083),a,c,n[t+15],p,3634488961),i,a,n[t+4],s,3889429448),c=GG(c,f=GG(f,i=GG(i,a=GG(a,c,f,i,n[t+9],A,568446438),c,f,n[t+14],d,3275163606),a,c,n[t+3],p,4107603335),i,a,n[t+8],s,1163531501),c=GG(c,f=GG(f,i=GG(i,a=GG(a,c,f,i,n[t+13],A,2850285829),c,f,n[t+2],d,4243563512),a,c,n[t+7],p,1735328473),i,a,n[t+12],s,2368359562),c=HH(c,f=HH(f,i=HH(i,a=HH(a,c,f,i,n[t+5],C,4294925250),c,f,n[t+8],S,2271550177),a,c,n[t+11],w,1839030562),i,a,n[t+14],y,4259657740),c=HH(c,f=HH(f,i=HH(i,a=HH(a,c,f,i,n[t+1],C,2763975236),c,f,n[t+4],S,1272893353),a,c,n[t+7],w,4139469664),i,a,n[t+10],y,3200236656),c=HH(c,f=HH(f,i=HH(i,a=HH(a,c,f,i,n[t+13],C,681279174),c,f,n[t+0],S,3936430074),a,c,n[t+3],w,3572445317),i,a,n[t+6],y,76029189),c=HH(c,f=HH(f,i=HH(i,a=HH(a,c,f,i,n[t+9],C,3654602809),c,f,n[t+12],S,3873151461),a,c,n[t+15],w,530742520),i,a,n[t+2],y,3299628645),c=II(c,f=II(f,i=II(i,a=II(a,c,f,i,n[t+0],b,4096336452),c,f,n[t+7],m,1126891415),a,c,n[t+14],x,2878612391),i,a,n[t+5],E,4237533241),c=II(c,f=II(f,i=II(i,a=II(a,c,f,i,n[t+12],b,1700485571),c,f,n[t+3],m,2399980690),a,c,n[t+10],x,4293915773),i,a,n[t+1],E,2240044497),c=II(c,f=II(f,i=II(i,a=II(a,c,f,i,n[t+8],b,1873313359),c,f,n[t+15],m,4253054816),a,c,n[t+6],x,2734768916),i,a,n[t+13],E,1309151649),c=II(c,f=II(f,i=II(i,a=II(a,c,f,i,n[t+4],b,4144885506),c,f,n[t+11],m,3174756917),a,c,n[t+2],x,718787259),i,a,n[t+9],E,3951481745),c=AddUnsigned(c,t),f=AddUnsigned(f,e),i=AddUnsigned(i,o),a=AddUnsigned(a,u);var T=WordToHex(c)+WordToHex(f)+WordToHex(i)+WordToHex(a);return T.toUpperCase()}function RotateLeft(r,n){return r<<n|r>>>32-n}function AddUnsigned(r,n){var t,e,o,u,c;return t=2147483648&r,e=2147483648&n,o=1073741824&r,u=1073741824&n,c=(1073741823&r)+(1073741823&n),t&e?2147483648^c^t^e:t|e?2147483648&c?3221225472^c^t^e:1073741824^c^t^e:c^t^e}function F(r,n,t){return r&n|~r&t}function G(r,n,t){return r&t|n&~t}function H(r,n,t){return r^n^t}function I(r,n,t){return n^(r|~t)}function FF(r,n,t,e,o,u,c){return r=AddUnsigned(r,AddUnsigned(AddUnsigned(F(n,t,e),o),c)),AddUnsigned(RotateLeft(r,u),n)}function GG(r,n,t,e,o,u,c){return r=AddUnsigned(r,AddUnsigned(AddUnsigned(G(n,t,e),o),c)),AddUnsigned(RotateLeft(r,u),n)}function HH(r,n,t,e,o,u,c){return r=AddUnsigned(r,AddUnsigned(AddUnsigned(H(n,t,e),o),c)),AddUnsigned(RotateLeft(r,u),n)}function II(r,n,t,e,o,u,c){return r=AddUnsigned(r,AddUnsigned(AddUnsigned(I(n,t,e),o),c)),AddUnsigned(RotateLeft(r,u),n)}function ConvertToWordArray(r){var n,t=r.length,e=t+8,o=(e-e%64)/64,u=16*(o+1),c=Array(u-1),f=0,i=0;for(;i<t;)n=(i-i%4)/4,f=8*(i%4),c[n]=c[n]|r.charCodeAt(i)<<f,i++;return n=(i-i%4)/4,f=8*(i%4),c[n]=c[n]|128<<f,c[u-2]=t<<3,c[u-1]=t>>>29,c}function WordToHex(r){var n,t="",e,o;for(o=0;o<=3;o++)e=r>>>8*o&255,n="0"+e.toString(16),t+=n.substr(n.length-2,2);return t}function Utf8Encode(r){var n="",t;for(var e=0;e<r.length;e++)t=r.charCodeAt(e),128>t?n+=String.fromCharCode(t):t>127&&2048>t?(n+=String.fromCharCode(t>>6|192),n+=String.fromCharCode(63&t|128)):(n+=String.fromCharCode(t>>12|224),n+=String.fromCharCode(t>>6&63|128),n+=String.fromCharCode(63&t|128));return n}return MD5})();
+
+        // 核心逻辑变量
+        let IMG = new Image();
+        let SIZE = 4294967296;
+        let Pic_SRC = "";
+        let Pic_DataUrl = "";
+        let OriginalPic_SRC = "";
+        let OriginalPic_DataUrl = "";
+        let INFO1 = "请先上传图片！";
+
+        function selectonchange() {
+            if (["pe1", "pe2"].indexOf(document.getElementById("slct").value) == -1) {
+                document.getElementById("ikey2").style.display = "none";
+                document.getElementById("ikey").style.display = "block";
+            } else {
+                document.getElementById("ikey").style.display = "none";
+                document.getElementById("ikey2").style.display = "block";
+            }
+        }
+
+        function xuanze() {
+            document.getElementById("ipt").click();
+        }
+
+        function huanyuan() {
+            if (Pic_SRC == "") { alert(INFO1) } else {
+                setpic(OriginalPic_DataUrl);
+                document.getElementById("picinfo").innerHTML = "已还原原图";
+            }
+        }
+
+        function baocun() {
+            if (Pic_SRC == "") {
+                alert(INFO1);
+            } else {
+                let alink = document.createElement("a");
+                alink.style = 'display:none;';
+                alink.download = "PicEncrypt_" + String(Date.now()) + ".png";
+                alink.href = Pic_DataUrl;
+                document.body.appendChild(alink);
+                alink.click();
+                document.body.removeChild(alink);
+            }
+        }
+
+        function setpic(DataUrl) {
+            if (Pic_SRC) { URL.revokeObjectURL(Pic_SRC) }
+            Pic_DataUrl = DataUrl;
+            Pic_SRC = URL.createObjectURL(dataURLtoBlob(DataUrl));
+            IMG.src = Pic_SRC;
+            let kimg = document.getElementById("kimg");
+            kimg.src = Pic_SRC;
+            kimg.style.display = "block";
+            document.getElementById("sign").style.display = "none";
+        }
+
+        function dataURLtoBlob(dataurl) {
+            var arr = dataurl.split(','), _arr = arr[1].substring(0, arr[1].length - 2), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(_arr), n = bstr.length, u8arr = new Uint8Array(n);
+            while (n--) { u8arr[n] = bstr.charCodeAt(n); }
+            return new Blob([u8arr], { type: mime });
+        }
+
+        function ipt() {
+            let oFReader = new FileReader();
+            oFReader.onload = function (event) {
+                setpic(event.target.result);
+                OriginalPic_DataUrl = Pic_DataUrl;
+                OriginalPic_SRC = Pic_SRC;
+                document.getElementById("picinfo").innerHTML = "图片加载成功";
+            }
+            let ofile = document.getElementById("ipt").files[0];
+            if(ofile) oFReader.readAsDataURL(ofile);
+        }
+
+        // 加密/解密包装函数
+        function processImage(action) {
+            if (Pic_SRC == "") { alert(INFO1); return; }
+            
+            let t = Date.now();
+            let a = document.getElementById("slct").value;
+            let k = document.getElementById("ikey").value;
+            let k2 = parseFloat(document.getElementById("ikey2").value);
+            
+            document.getElementById("loading").style.display = "flex"; // Flex居中
+
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    let s = "";
+                    if (action === 'encrypt') {
+                        if (a == "b") s = encryptB2(IMG, k, 32, 32);
+                        else if (a == "c") s = encryptC(IMG, k);
+                        else if (a == "pe1") s = encryptPE1(IMG, k2);
+                        else if (a == "pe2") s = encryptPE2(IMG, k2);
+                        else s = encryptC2(IMG, k);
+                    } else {
+                        if (a == "b") s = decryptB2(IMG, k, 32, 32);
+                        else if (a == "c") s = decryptC(IMG, k);
+                        else if (a == "pe1") s = decryptPE1(IMG, k2);
+                        else if (a == "pe2") s = decryptPE2(IMG, k2);
+                        else s = decryptC2(IMG, k);
+                    }
+                    
+                    setpic(s[0]);
+                    document.getElementById("picinfo").innerHTML = `尺寸: ${s[1]}×${s[2]} &emsp; 耗时: ${(Date.now() - t)}ms`;
+                    document.getElementById("loading").style.display = "none";
+                })
+            })
+        }
+
+        function jiami() { processImage('encrypt'); }
+        function jiemi() { processImage('decrypt'); }
+
+        // --- 算法实现 (保持原样，仅压缩空格) ---
+        function amess(e,r){var a,n,t=new Array(e).fill(0).map((e,r)=>r);for(let o=e-1;o>0;o-=1)a=parseInt(md5(r+o.toString()).substr(0,7),16)%(o+1),n=t[a],t[a]=t[o],t[o]=n;return t}
+        function encryptB2(e,r,a,n){var t=document.createElement("canvas"),o=t.getContext("2d"),c=e.width,d=e.height,i=c,l=d,f,m,u=new Array,s=new Array,v=8,h=0,g=0,p,w;c*d>SIZE&&(c=parseInt(Math.pow(SIZE*e.width/e.height,.5)),d=parseInt(Math.pow(SIZE*e.height/e.width,.5))),i=c,l=d;for(;c%a>0;)c++;for(;d%n>0;)d++;p=c/a,w=d/n,t.width=c,t.height=d,o.drawImage(e,0,0,i,l),o.drawImage(e,0,l,i,l),o.drawImage(e,i,0,i,l),o.drawImage(e,i,l,i,l),f=o.getImageData(0,0,c,d),m=o.createImageData(c,d),u=amess(a,r),s=amess(n,r);for(let E=0;E<c;E++)for(let I=0;I<d;I++)h=E,g=I,h=(u[(g/w|0)%a]*p+h)%c,h=u[(h/p|0)]*p+h%p,g=(s[(h/p|0)%n]*w+g)%d,g=s[(g/w|0)]*w+g%w,m.data[4*(E+I*c)]=f.data[4*(h+g*c)],m.data[4*(E+I*c)+1]=f.data[4*(h+g*c)+1],m.data[4*(E+I*c)+2]=f.data[4*(h+g*c)+2],m.data[4*(E+I*c)+3]=f.data[4*(h+g*c)+3];return o.putImageData(m,0,0),[t.toDataURL(),c,d]}
+        function decryptB2(e,r,a,n){var t=document.createElement("canvas"),o=t.getContext("2d"),c=e.width,d=e.height,i=c,l=d,f,m,u=new Array,s=new Array,v=8,h=0,g=0,p,w;i=c,l=d;for(;c%a>0;)c++;for(;d%n>0;)d++;p=c/a,w=d/n,t.width=c,t.height=d,o.drawImage(e,0,0,i,l),o.drawImage(e,0,l,i,l),o.drawImage(e,i,0,i,l),o.drawImage(e,i,l,i,l),f=o.getImageData(0,0,c,d),m=o.createImageData(c,d),u=amess(a,r),s=amess(n,r);for(let E=0;E<c;E++)for(let I=0;I<d;I++)h=E,g=I,h=(u[(g/w|0)%a]*p+h)%c,h=u[(h/p|0)]*p+h%p,g=(s[(h/p|0)%n]*w+g)%d,g=s[(g/w|0)]*w+g%w,m.data[4*(h+g*c)]=f.data[4*(E+I*c)],m.data[4*(h+g*c)+1]=f.data[4*(E+I*c)+1],m.data[4*(h+g*c)+2]=f.data[4*(E+I*c)+2],m.data[4*(h+g*c)+3]=f.data[4*(E+I*c)+3];return o.putImageData(m,0,0),[t.toDataURL(),c,d]}
+        function encryptC(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=new Array,f=0,m=0;t*o>SIZE&&(t=parseInt(Math.pow(SIZE*e.width/e.height,.5)),o=parseInt(Math.pow(SIZE*e.height/e.width,.5))),a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=amess(t,r),l=amess(o,r);for(let u=0;u<t;u++)for(let s=0;s<o;s++)f=u,m=s,f=(i[m%t]+f)%t,f=i[f],m=(l[f%o]+m)%o,m=l[m],d.data[4*(u+s*t)]=c.data[4*(f+m*t)],d.data[4*(u+s*t)+1]=c.data[4*(f+m*t)+1],d.data[4*(u+s*t)+2]=c.data[4*(f+m*t)+2],d.data[4*(u+s*t)+3]=c.data[4*(f+m*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function decryptC(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=new Array,f=0,m=0;a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=amess(t,r),l=amess(o,r);for(let u=0;u<t;u++)for(let s=0;s<o;s++)f=u,m=s,f=(i[m%t]+f)%t,f=i[f],m=(l[f%o]+m)%o,m=l[m],d.data[4*(f+m*t)]=c.data[4*(u+s*t)],d.data[4*(f+m*t)+1]=c.data[4*(u+s*t)+1],d.data[4*(f+m*t)+2]=c.data[4*(u+s*t)+2],d.data[4*(f+m*t)+3]=c.data[4*(u+s*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function encryptC2(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=new Array,f=0,m=0;t*o>SIZE&&(t=parseInt(Math.pow(SIZE*e.width/e.height,.5)),o=parseInt(Math.pow(SIZE*e.height/e.width,.5))),a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=amess(t,r),l=amess(o,r);for(let u=0;u<t;u++)for(let s=0;s<o;s++)f=u,m=s,f=(i[m%t]+f)%t,f=i[f],d.data[4*(u+s*t)]=c.data[4*(f+m*t)],d.data[4*(u+s*t)+1]=c.data[4*(f+m*t)+1],d.data[4*(u+s*t)+2]=c.data[4*(f+m*t)+2],d.data[4*(u+s*t)+3]=c.data[4*(f+m*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function decryptC2(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=new Array,f=0,m=0;a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=amess(t,r),l=amess(o,r);for(let u=0;u<t;u++)for(let s=0;s<o;s++)f=u,m=s,f=(i[m%t]+f)%t,f=i[f],d.data[4*(f+m*t)]=c.data[4*(u+s*t)],d.data[4*(f+m*t)+1]=c.data[4*(u+s*t)+1],d.data[4*(f+m*t)+2]=c.data[4*(u+s*t)+2],d.data[4*(f+m*t)+3]=c.data[4*(u+s*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function produceLogisticSort(e,r){return e[0]-r[0]}
+        function produceLogistic(e,r){let a=new Array(r),n=e;a[0]=[n,0];for(let t=1;t<r;t++)n=3.9999999*n*(1-n),a[t]=[n,t];return a}
+        function encryptPE1(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=0,f=0;t*o>SIZE&&(t=parseInt(Math.pow(SIZE*e.width/e.height,.5)),o=parseInt(Math.pow(SIZE*e.height/e.width,.5))),a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=produceLogistic(r,t).sort(produceLogisticSort).map(e=>e[1]);for(let m=0;m<t;m++)for(let u=0;u<o;u++)l=i[m],d.data[4*(m+u*t)]=c.data[4*(l+u*t)],d.data[4*(m+u*t)+1]=c.data[4*(l+u*t)+1],d.data[4*(m+u*t)+2]=c.data[4*(l+u*t)+2],d.data[4*(m+u*t)+3]=c.data[4*(l+u*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function decryptPE1(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i=new Array,l=0,f=0;a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=produceLogistic(r,t).sort(produceLogisticSort).map(e=>e[1]);for(let m=0;m<t;m++)for(let u=0;u<o;u++)l=i[m],d.data[4*(l+u*t)]=c.data[4*(m+u*t)],d.data[4*(l+u*t)+1]=c.data[4*(m+u*t)+1],d.data[4*(l+u*t)+2]=c.data[4*(m+u*t)+2],d.data[4*(l+u*t)+3]=c.data[4*(m+u*t)+3];return n.putImageData(d,0,0),[a.toDataURL(),t,o]}
+        function encryptPE2(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i,l=new Array,f=r,m=0,u=0;t*o>SIZE&&(t=parseInt(Math.pow(SIZE*e.width/e.height,.5)),o=parseInt(Math.pow(SIZE*e.height/e.width,.5))),a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=n.createImageData(t,o);for(let s=0;s<o;s++){l=produceLogistic(f,t),f=l[t-1][0],l=l.sort(produceLogisticSort).map(e=>e[1]);for(let v=0;v<t;v++)m=l[v],d.data[4*(v+s*t)]=c.data[4*(m+s*t)],d.data[4*(v+s*t)+1]=c.data[4*(m+s*t)+1],d.data[4*(v+s*t)+2]=c.data[4*(m+s*t)+2],d.data[4*(v+s*t)+3]=c.data[4*(m+s*t)+3]}f=r;for(let h=0;h<t;h++){l=produceLogistic(f,o),f=l[o-1][0],l=l.sort(produceLogisticSort).map(e=>e[1]);for(let g=0;g<o;g++)u=l[g],i.data[4*(h+g*t)]=d.data[4*(h+u*t)],i.data[4*(h+g*t)+1]=d.data[4*(h+u*t)+1],i.data[4*(h+g*t)+2]=d.data[4*(h+u*t)+2],i.data[4*(h+g*t)+3]=d.data[4*(h+u*t)+3]}return n.putImageData(i,0,0),[a.toDataURL(),t,o]}
+        function decryptPE2(e,r){var a=document.createElement("canvas"),n=a.getContext("2d"),t=e.width,o=e.height,c,d,i,l=new Array,f=r,m=0,u=0;a.width=t,a.height=o,n.drawImage(e,0,0,t,o),c=n.getImageData(0,0,t,o),d=n.createImageData(t,o),i=n.createImageData(t,o);for(let s=0;s<t;s++){l=produceLogistic(f,o),f=l[o-1][0],l=l.sort(produceLogisticSort).map(e=>e[1]);for(let v=0;v<o;v++)u=l[v],d.data[4*(s+u*t)]=c.data[4*(s+v*t)],d.data[4*(s+u*t)+1]=c.data[4*(s+v*t)+1],d.data[4*(s+u*t)+2]=c.data[4*(s+v*t)+2],d.data[4*(s+u*t)+3]=c.data[4*(s+v*t)+3]}f=r;for(let h=0;h<o;h++){l=produceLogistic(f,t),f=l[t-1][0],l=l.sort(produceLogisticSort).map(e=>e[1]);for(let g=0;g<t;g++)m=l[g],i.data[4*(m+h*t)]=d.data[4*(g+h*t)],i.data[4*(m+h*t)+1]=d.data[4*(g+h*t)+1],i.data[4*(m+h*t)+2]=d.data[4*(g+h*t)+2],i.data[4*(m+h*t)+3]=d.data[4*(g+h*t)+3]}return n.putImageData(i,0,0),[a.toDataURL(),t,o]}
+    </script>
+</body>
+</html>

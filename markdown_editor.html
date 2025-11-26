@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 实时预览编辑器</title>
+    <link rel="icon" href="https://vip.123pan.cn/1813813253/cdn/logo/1.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .glass {
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+        }
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2); /* Light Mode */
+            border-radius: 20px;
+            transition: background-color 0.2s;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2); /* Dark Mode */
+        }
+        .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.4); /* Light Mode Hover */
+        }
+        .dark .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.4); /* Dark Mode Hover */
+        }
+
+        /* Preview Area Typography */
+        .markdown-preview h1, .markdown-preview h2, .markdown-preview h3 {
+            border-bottom: 1px solid #e5e7eb; /* Light: gray-200 */
+            padding-bottom: 0.5rem; margin-top: 1.5rem; margin-bottom: 1rem;
+        }
+        .dark .markdown-preview h1, .dark .markdown-preview h2, .dark .markdown-preview h3 {
+            border-bottom-color: rgba(255, 255, 255, 0.2);
+        }
+        .markdown-preview h1 { font-size: 2.25rem; }
+        .markdown-preview h2 { font-size: 1.875rem; }
+        .markdown-preview h3 { font-size: 1.5rem; }
+        .markdown-preview p { margin-bottom: 1rem; line-height: 1.7; }
+        .markdown-preview a { color: #3b82f6; text-decoration: none; } /* Light: blue-500 */
+        .dark .markdown-preview a { color: #60a5fa; } /* Dark: blue-400 */
+        .markdown-preview a:hover { text-decoration: underline; }
+        .markdown-preview ul, .markdown-preview ol { margin-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-preview li { margin-bottom: 0.5rem; }
+        .markdown-preview blockquote {
+            border-left: 4px solid #d1d5db; /* Light: gray-300 */
+            padding-left: 1rem; margin: 1.5rem 0; color: #4b5563; /* Light: gray-600 */
+        }
+        .dark .markdown-preview blockquote {
+            border-left-color: rgba(255, 255, 255, 0.4);
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .markdown-preview code {
+            background-color: #e5e7eb; /* Light: gray-200 */
+            color: #dc2626; /* Light: red-600 */
+            padding: 0.2rem 0.4rem; border-radius: 0.25rem;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .dark .markdown-preview code {
+            background-color: rgba(0, 0, 0, 0.2);
+            color: #fca5a5; /* Dark: red-300 */
+        }
+        .markdown-preview pre {
+            background-color: #f3f4f6; /* Light: gray-100 */
+            padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; overflow-x: auto;
+        }
+        .dark .markdown-preview pre { background-color: rgba(0, 0, 0, 0.3); }
+        .markdown-preview pre code { background-color: transparent; padding: 0; color: inherit; }
+
+        /* Animations */
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.98); } 100% { opacity: 1; transform: scale(1); } }
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        @keyframes contentUpdate { from { opacity: 0.8; } to { opacity: 1; } }
+        .content-updated { animation: contentUpdate 0.3s ease-out; }
+    </style>
+</head>
+<body class="overflow-hidden bg-gray-50 dark:bg-gradient-to-br dark:from-slate-900 dark:to-indigo-900 transition-colors duration-300">
+
+    <div class="h-screen w-screen p-4 md:p-8 flex flex-col pop-in">
+        <div class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-8 glass bg-white/80 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-slate-800 dark:text-white rounded-3xl shadow-2xl overflow-hidden">
+            <!-- Editor Panel -->
+            <div class="h-full flex flex-col overflow-hidden">
+                 <h2 class="text-xl font-bold p-4 pb-2 text-center opacity-80 shrink-0">编辑器</h2>
+                 <textarea id="editor" class="w-full flex-grow p-4 bg-transparent resize-none focus:outline-none custom-scrollbar text-base leading-7"></textarea>
+            </div>
+            
+            <!-- Preview Panel -->
+            <div class="h-full flex flex-col overflow-hidden">
+                <h2 class="text-xl font-bold p-4 pb-2 text-center opacity-80 shrink-0">预览</h2>
+                <div id="preview" class="w-full flex-grow p-4 overflow-y-auto custom-scrollbar markdown-preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Dark Mode ---
+        const applyTheme = () => { if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { document.documentElement.classList.add('dark'); } else { document.documentElement.classList.remove('dark'); } };
+        applyTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+
+        // --- DOM Elements ---
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+
+        // --- Initial Content ---
+        const initialContent = `# 欢迎使用 Markdown 编辑器!
+
+## 这是一个美观、流畅的实时预览工具
+
+**特点:**
+- **实时预览:** 您在左侧输入时,右侧会立即更新。
+- **滚动同步:** 两个面板会同步滚动。
+- **毛玻璃UI:** 现代化的设计语言。
+- **丰富的动效:** 为您带来愉悦的写作体验。
+
+### 代码示例
+\`\`\`javascript
+// 这是JS代码块
+function greet(name) {
+  console.log(\`Hello, \${name}!\`);
+}
+greet('World');
+\`\`\`
+
+> 引用一块文本, 就像这样。
+
+试着在这里开始您的创作吧!`;
+
+        // --- Core Logic ---
+        const updatePreview = () => {
+            const markdownText = editor.value;
+            preview.innerHTML = marked.parse(markdownText);
+            preview.classList.remove('content-updated');
+            void preview.offsetWidth; // Force reflow
+            preview.classList.add('content-updated');
+        };
+
+        // --- Scroll Sync Logic ---
+        let activePane = null; 
+
+        const syncScroll = (source, target) => {
+            const sourceScrollTop = source.scrollTop;
+            const sourceScrollHeight = source.scrollHeight - source.clientHeight;
+            const targetScrollHeight = target.scrollHeight - target.clientHeight;
+
+            if (sourceScrollHeight <= 0) return;
+
+            const scrollRatio = sourceScrollTop / sourceScrollHeight;
+            target.scrollTop = scrollRatio * targetScrollHeight;
+        };
+
+        // --- Event Listeners ---
+        editor.addEventListener('input', updatePreview);
+
+        editor.addEventListener('mouseenter', () => activePane = editor);
+        preview.addEventListener('mouseenter', () => activePane = preview);
+        editor.addEventListener('touchstart', () => activePane = editor, { passive: true });
+        preview.addEventListener('touchstart', () => activePane = preview, { passive: true });
+        
+        editor.addEventListener('scroll', () => {
+            if (activePane === editor) {
+                syncScroll(editor, preview);
+            }
+        });
+        preview.addEventListener('scroll', () => {
+            if (activePane === preview) {
+                syncScroll(preview, editor);
+            }
+        });
+        
+        // --- Initial Load ---
+        editor.value = initialContent;
+        updatePreview();
+
+    </script>
+</body>
+</html>
+
